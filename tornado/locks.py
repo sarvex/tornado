@@ -56,10 +56,10 @@ class Condition(_TimeoutGarbageCollector):
         self.io_loop = ioloop.IOLoop.current()
 
     def __repr__(self):
-        result = '<%s' % (self.__class__.__name__, )
+        result = f'<{self.__class__.__name__}'
         if self._waiters:
-            result += ' waiters[%s]' % len(self._waiters)
-        return result + '>'
+            result += f' waiters[{len(self._waiters)}]'
+        return f'{result}>'
 
     def wait(self, timeout=None):
         """Wait for `.notify`.
@@ -105,8 +105,7 @@ class Event(object):
         self._future = Future()
 
     def __repr__(self):
-        return '<%s %s>' % (
-            self.__class__.__name__, 'set' if self.is_set() else 'clear')
+        return f"<{self.__class__.__name__} {'set' if self.is_set() else 'clear'}>"
 
     def is_set(self):
         """Return ``True`` if the internal flag is true."""
@@ -285,9 +284,7 @@ class Lock(object):
         self._block = BoundedSemaphore(value=1)
 
     def __repr__(self):
-        return "<%s _block=%s>" % (
-            self.__class__.__name__,
-            self._block)
+        return f"<{self.__class__.__name__} _block={self._block}>"
 
     def acquire(self, deadline=None):
         """Attempt to lock. Returns a Future.

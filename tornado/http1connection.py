@@ -201,19 +201,17 @@ class HTTP1Connection(httputil.HTTPConnection):
                     # http://tools.ietf.org/html/rfc7230#section-3.3
                     skip_body = True
                 if code >= 100 and code < 200:
-                    # 1xx responses should never indicate the presence of
-                    # a body.
                     if ('Content-Length' in headers or
                             'Transfer-Encoding' in headers):
                         raise httputil.HTTPInputError(
                             "Response code %d cannot have body" % code)
-                    # TODO: client delegates will get headers_received twice
-                    # in the case of a 100-continue.  Document or change?
-                    yield self._read_message(delegate)
-            else:
-                if (headers.get("Expect") == "100-continue" and
+                    else:
+                        # TODO: client delegates will get headers_received twice
+                        # in the case of a 100-continue.  Document or change?
+                        yield self._read_message(delegate)
+            elif (headers.get("Expect") == "100-continue" and
                         not self._write_finished):
-                    self.stream.write(b"HTTP/1.1 100 (Continue)\r\n\r\n")
+                self.stream.write(b"HTTP/1.1 100 (Continue)\r\n\r\n")
             if not skip_body:
                 body_future = self._read_body(
                     start_line.code if self.is_client else 0, headers, delegate)
@@ -333,7 +331,7 @@ class HTTP1Connection(httputil.HTTPConnection):
         lines = []
         if self.is_client:
             self._request_start_line = start_line
-            lines.append(utf8('%s %s HTTP/1.1' % (start_line[0], start_line[1])))
+            lines.append(utf8(f'{start_line[0]} {start_line[1]} HTTP/1.1'))
             # Client requests with a non-empty body must have either a
             # Content-Length or a Transfer-Encoding.
             self._chunking_output = (
@@ -342,7 +340,7 @@ class HTTP1Connection(httputil.HTTPConnection):
                 'Transfer-Encoding' not in headers)
         else:
             self._response_start_line = start_line
-            lines.append(utf8('HTTP/1.1 %s %s' % (start_line[1], start_line[2])))
+            lines.append(utf8(f'HTTP/1.1 {start_line[1]} {start_line[2]}'))
             self._chunking_output = (
                 # TODO: should this use
                 # self._request_start_line.version or
@@ -375,7 +373,7 @@ class HTTP1Connection(httputil.HTTPConnection):
         lines.extend([utf8(n) + b": " + utf8(v) for n, v in headers.get_all()])
         for line in lines:
             if b'\n' in line:
-                raise ValueError('Newline in header: ' + repr(line))
+                raise ValueError(f'Newline in header: {repr(line)}')
         future = None
         if self.stream.closed():
             future = self._write_future = Future()
@@ -438,10 +436,9 @@ class HTTP1Connection(httputil.HTTPConnection):
             raise httputil.HTTPOutputError(
                 "Tried to write %d bytes less than Content-Length" %
                 self._expected_content_remaining)
-        if self._chunking_output:
-            if not self.stream.closed():
-                self._pending_write = self.stream.write(b"0\r\n\r\n")
-                self._pending_write.add_done_callback(self._on_write_complete)
+        if self._chunking_output and not self.stream.closed():
+            self._pending_write = self.stream.write(b"0\r\n\r\n")
+            self._pending_write.add_done_callback(self._on_write_complete)
         self._write_finished = True
         # If the app finished the request while we're still reading,
         # divert any remaining data away from the delegate and
@@ -546,9 +543,7 @@ class HTTP1Connection(httputil.HTTPConnection):
             return self._read_fixed_body(content_length, delegate)
         if headers.get("Transfer-Encoding") == "chunked":
             return self._read_chunked_body(delegate)
-        if self.is_client:
-            return self._read_body_until_close(delegate)
-        return None
+        return self._read_body_until_close(delegate) if self.is_client else None
 
     @gen.coroutine
     def _read_fixed_body(self, content_length, delegate):
@@ -616,9 +611,9 @@ class _GzipMessageDelegate(httputil.HTTPMessageDelegate):
         if self._decompressor:
             compressed_data = chunk
             while compressed_data:
-                decompressed = self._decompressor.decompress(
-                    compressed_data, self._chunk_size)
-                if decompressed:
+                if decompressed := self._decompressor.decompress(
+                    compressed_data, self._chunk_size
+                ):
                     yield gen.maybe_future(
                         self._delegate.data_received(decompressed))
                 compressed_data = self._decompressor.unconsumed_tail
@@ -627,8 +622,7 @@ class _GzipMessageDelegate(httputil.HTTPMessageDelegate):
 
     def finish(self):
         if self._decompressor is not None:
-            tail = self._decompressor.flush()
-            if tail:
+            if tail := self._decompressor.flush():
                 # I believe the tail will always be empty (i.e.
                 # decompress will return all it can).  The purpose
                 # of the flush call is to detect errors such

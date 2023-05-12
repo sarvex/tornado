@@ -111,8 +111,9 @@ class _WSGIConnection(httputil.HTTPConnection):
         else:
             self._expected_content_remaining = None
         self.start_response(
-            '%s %s' % (start_line.code, start_line.reason),
-            [(native_str(k), native_str(v)) for (k, v) in headers.get_all()])
+            f'{start_line.code} {start_line.reason}',
+            [(native_str(k), native_str(v)) for (k, v) in headers.get_all()],
+        )
         if chunk is not None:
             self.write(chunk, callback)
         elif callback is not None:
@@ -273,6 +274,7 @@ class WSGIContainer(object):
             data["status"] = status
             data["headers"] = response_headers
             return response.append
+
         app_response = self.wsgi_application(
             WSGIContainer.environ(request), start_response)
         try:
@@ -287,7 +289,7 @@ class WSGIContainer(object):
         status_code, reason = data["status"].split(' ', 1)
         status_code = int(status_code)
         headers = data["headers"]
-        header_set = set(k.lower() for (k, v) in headers)
+        header_set = {k.lower() for (k, v) in headers}
         body = escape.utf8(body)
         if status_code != 304:
             if "content-length" not in header_set:
@@ -295,7 +297,7 @@ class WSGIContainer(object):
             if "content-type" not in header_set:
                 headers.append(("Content-Type", "text/html; charset=UTF-8"))
         if "server" not in header_set:
-            headers.append(("Server", "TornadoServer/%s" % tornado.version))
+            headers.append(("Server", f"TornadoServer/{tornado.version}"))
 
         start_line = httputil.ResponseStartLine("HTTP/1.1", status_code, reason)
         header_obj = httputil.HTTPHeaders()
@@ -350,8 +352,7 @@ class WSGIContainer(object):
         else:
             log_method = access_log.error
         request_time = 1000.0 * request.request_time()
-        summary = request.method + " " + request.uri + " (" + \
-            request.remote_ip + ")"
+        summary = f"{request.method} {request.uri} ({request.remote_ip})"
         log_method("%d %s %.2fms", status_code, summary, request_time)
 
 

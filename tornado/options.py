@@ -131,7 +131,7 @@ class OptionParser(object):
 
         .. versionadded:: 3.1
         """
-        return set(opt.group_name for opt in self._options.values())
+        return {opt.group_name for opt in self._options.values()}
 
     def group_dict(self, group):
         """The names and values of options in a group.
@@ -150,17 +150,18 @@ class OptionParser(object):
 
         .. versionadded:: 3.1
         """
-        return dict(
-            (name, opt.value()) for name, opt in self._options.items()
-            if not group or group == opt.group_name)
+        return {
+            name: opt.value()
+            for name, opt in self._options.items()
+            if not group or group == opt.group_name
+        }
 
     def as_dict(self):
         """The names and values of all options.
 
         .. versionadded:: 3.1
         """
-        return dict(
-            (name, opt.value()) for name, opt in self._options.items())
+        return {name: opt.value() for name, opt in self._options.items()}
 
     def define(self, name, default=None, type=None, help=None, metavar=None,
                multiple=False, group=None, callback=None):
@@ -215,14 +216,8 @@ class OptionParser(object):
         if file_name == options_file:
             file_name = ""
         if type is None:
-            if not multiple and default is not None:
-                type = default.__class__
-            else:
-                type = str
-        if group:
-            group_name = group
-        else:
-            group_name = file_name
+            type = default.__class__ if not multiple and default is not None else str
+        group_name = group if group else file_name
         self._options[name] = _Option(name, file_name=file_name,
                                       default=default, type=type, help=help,
                                       metavar=metavar, multiple=multiple,
@@ -297,7 +292,7 @@ class OptionParser(object):
         """Prints all the command line options to stderr (or another file)."""
         if file is None:
             file = sys.stderr
-        print("Usage: %s [OPTIONS]" % sys.argv[0], file=file)
+        print(f"Usage: {sys.argv[0]} [OPTIONS]", file=file)
         print("\nOptions:\n", file=file)
         by_group = {}
         for option in self._options.values():
@@ -310,10 +305,10 @@ class OptionParser(object):
             for option in o:
                 prefix = option.name
                 if option.metavar:
-                    prefix += "=" + option.metavar
+                    prefix += f"={option.metavar}"
                 description = option.help or ""
                 if option.default is not None and option.default != '':
-                    description += " (default %s)" % option.default
+                    description += f" (default {option.default})"
                 lines = textwrap.wrap(description, 79 - 35)
                 if len(prefix) > 30 or len(lines) == 0:
                     lines.insert(0, '')
@@ -437,10 +432,9 @@ class _Option(object):
                 if item is not None and not isinstance(item, self.type):
                     raise Error("Option %r is required to be a list of %s" %
                                 (self.name, self.type.__name__))
-        else:
-            if value is not None and not isinstance(value, self.type):
-                raise Error("Option %r is required to be a %s (%s given)" %
-                            (self.name, self.type.__name__, type(value)))
+        elif value is not None and not isinstance(value, self.type):
+            raise Error("Option %r is required to be a %s (%s given)" %
+                        (self.name, self.type.__name__, type(value)))
         self._value = value
         if self.callback is not None:
             self.callback(self._value)

@@ -325,10 +325,10 @@ class WaitIterator(object):
                 "You must provide args or kwargs, not both")
 
         if kwargs:
-            self._unfinished = dict((f, k) for (k, f) in kwargs.items())
+            self._unfinished = {f: k for (k, f) in kwargs.items()}
             futures = list(kwargs.values())
         else:
-            self._unfinished = dict((f, i) for (i, f) in enumerate(args))
+            self._unfinished = {f: i for (i, f) in enumerate(args)}
             futures = args
 
         self._finished = collections.deque()
@@ -531,10 +531,7 @@ class YieldFuture(YieldPoint):
             self.result = self.future.result()
 
     def is_ready(self):
-        if self.runner is not None:
-            return self.runner.is_ready(self.key)
-        else:
-            return True
+        return self.runner.is_ready(self.key) if self.runner is not None else True
 
     def get_result(self):
         if self.runner is not None:
@@ -580,10 +577,7 @@ class Multi(YieldPoint):
 
     def get_result(self):
         result = (i.get_result() for i in self.children)
-        if self.keys is not None:
-            return dict(zip(self.keys, result))
-        else:
-            return list(result)
+        return dict(zip(self.keys, result)) if self.keys is not None else list(result)
 
 
 def multi_future(children):
@@ -645,10 +639,9 @@ def maybe_future(x):
     """
     if is_future(x):
         return x
-    else:
-        fut = Future()
-        fut.set_result(x)
-        return fut
+    fut = Future()
+    fut.set_result(x)
+    return fut
 
 
 def with_timeout(timeout, future, io_loop=None, quiet_exceptions=()):

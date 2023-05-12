@@ -76,7 +76,7 @@ class TCPClientTest(AsyncTestCase):
         # to be non-zero if we do not also pass AI_PASSIVE.
         Resolver().resolve('localhost', 80, callback=self.stop)
         addrinfo = self.wait()
-        families = set(addr[0] for addr in addrinfo)
+        families = {addr[0] for addr in addrinfo}
         if socket.AF_INET6 not in families:
             self.skipTest("localhost does not resolve to ipv6")
 

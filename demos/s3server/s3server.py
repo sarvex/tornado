@@ -77,18 +77,18 @@ class BaseRequestHandler(web.RequestHandler):
         assert isinstance(value, dict) and len(value) == 1
         self.set_header("Content-Type", "application/xml; charset=UTF-8")
         name = value.keys()[0]
-        parts = []
-        parts.append('<' + escape.utf8(name) +
-                     ' xmlns="http://doc.s3.amazonaws.com/2006-03-01">')
+        parts = [
+            f'<{escape.utf8(name)} xmlns="http://doc.s3.amazonaws.com/2006-03-01">'
+        ]
         self._render_parts(value.values()[0], parts)
-        parts.append('</' + escape.utf8(name) + '>')
+        parts.append(f'</{escape.utf8(name)}>')
         self.finish('<?xml version="1.0" encoding="UTF-8"?>\n' +
                     ''.join(parts))
 
     def _render_parts(self, value, parts=[]):
         if isinstance(value, (unicode, bytes)):
             parts.append(escape.xhtml_escape(value))
-        elif isinstance(value, int) or isinstance(value, long):
+        elif isinstance(value, (int, long)):
             parts.append(str(value))
         elif isinstance(value, datetime.datetime):
             parts.append(value.strftime("%Y-%m-%dT%H:%M:%S.000Z"))
@@ -97,9 +97,9 @@ class BaseRequestHandler(web.RequestHandler):
                 if not isinstance(subvalue, list):
                     subvalue = [subvalue]
                 for subsubvalue in subvalue:
-                    parts.append('<' + escape.utf8(name) + '>')
+                    parts.append(f'<{escape.utf8(name)}>')
                     self._render_parts(subsubvalue, parts)
-                    parts.append('</' + escape.utf8(name) + '>')
+                    parts.append(f'</{escape.utf8(name)}>')
         else:
             raise Exception("Unknown S3 value type %r", value)
 
@@ -141,12 +141,11 @@ class BucketHandler(BaseRequestHandler):
                                             bucket_name))
         terse = int(self.get_argument("terse", 0))
         if not path.startswith(self.application.directory) or \
-           not os.path.isdir(path):
+               not os.path.isdir(path):
             raise web.HTTPError(404)
         object_names = []
         for root, dirs, files in os.walk(path):
-            for file_name in files:
-                object_names.append(os.path.join(root, file_name))
+            object_names.extend(os.path.join(root, file_name) for file_name in files)
         skip = len(path) + 1
         for i in range(self.application.bucket_depth):
             skip += 2 * (i + 1) + 1
@@ -171,11 +170,12 @@ class BucketHandler(BaseRequestHandler):
             c = {"Key": object_name}
             if not terse:
                 info = os.stat(object_path)
-                c.update({
+                c |= {
                     "LastModified": datetime.datetime.utcfromtimestamp(
-                        info.st_mtime),
+                        info.st_mtime
+                    ),
                     "Size": info.st_size,
-                })
+                }
             contents.append(c)
             marker = object_name
         self.render_xml({"ListBucketResult": {
@@ -231,7 +231,7 @@ class ObjectHandler(BaseRequestHandler):
         bucket_dir = os.path.abspath(os.path.join(
             self.application.directory, bucket))
         if not bucket_dir.startswith(self.application.directory) or \
-           not os.path.isdir(bucket_dir):
+               not os.path.isdir(bucket_dir):
             raise web.HTTPError(404)
         path = self._object_path(bucket, object_name)
         if not path.startswith(bucket_dir) or os.path.isdir(path):
@@ -239,9 +239,8 @@ class ObjectHandler(BaseRequestHandler):
         directory = os.path.dirname(path)
         if not os.path.exists(directory):
             os.makedirs(directory)
-        object_file = open(path, "w")
-        object_file.write(self.request.body)
-        object_file.close()
+        with open(path, "w") as object_file:
+            object_file.write(self.request.body)
         self.finish()
 
     def delete(self, bucket, object_name):

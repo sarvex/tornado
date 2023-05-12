@@ -36,8 +36,7 @@ class FakeTimeSelect(_Select):
         self._time += t
 
     def poll(self, timeout):
-        events = super(FakeTimeSelect, self).poll(0)
-        if events:
+        if events := super(FakeTimeSelect, self).poll(0):
             return events
         self._time += timeout
         return []
@@ -202,7 +201,7 @@ class TestIOLoop(AsyncTestCase):
         # gets executed and doesn't blow up.  This test is only really useful
         # on PollIOLoop subclasses, but it should run silently on any
         # implementation.
-        for i in range(2000):
+        for _ in range(2000):
             timeout = self.io_loop.add_timeout(self.io_loop.time() + 3600,
                                                lambda: None)
             self.io_loop.remove_timeout(timeout)

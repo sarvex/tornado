@@ -78,8 +78,7 @@ class LogFormatterTest(unittest.TestCase):
     def get_output(self):
         with open(self.filename, "rb") as f:
             line = f.read().strip()
-            m = LogFormatterTest.LINE_RE.match(line)
-            if m:
+            if m := LogFormatterTest.LINE_RE.match(line):
                 return m.group(1)
             else:
                 raise Exception("output didn't match regex: %r" % line)
@@ -143,12 +142,12 @@ class EnablePrettyLoggingTest(unittest.TestCase):
     def test_log_file(self):
         tmpdir = tempfile.mkdtemp()
         try:
-            self.options.log_file_prefix = tmpdir + '/test_log'
+            self.options.log_file_prefix = f'{tmpdir}/test_log'
             enable_pretty_logging(options=self.options, logger=self.logger)
             self.assertEqual(1, len(self.logger.handlers))
             self.logger.error('hello')
             self.logger.handlers[0].flush()
-            filenames = glob.glob(tmpdir + '/test_log*')
+            filenames = glob.glob(f'{tmpdir}/test_log*')
             self.assertEqual(1, len(filenames))
             with open(filenames[0]) as f:
                 self.assertRegexpMatches(f.read(), r'^\[E [^]]*\] hello$')
@@ -156,7 +155,7 @@ class EnablePrettyLoggingTest(unittest.TestCase):
             for handler in self.logger.handlers:
                 handler.flush()
                 handler.close()
-            for filename in glob.glob(tmpdir + '/test_log*'):
+            for filename in glob.glob(f'{tmpdir}/test_log*'):
                 os.unlink(filename)
             os.rmdir(tmpdir)
 

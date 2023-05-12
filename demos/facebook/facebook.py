@@ -54,8 +54,7 @@ class Application(tornado.web.Application):
 class BaseHandler(tornado.web.RequestHandler):
     def get_current_user(self):
         user_json = self.get_secure_cookie("fbdemo_user")
-        if not user_json: return None
-        return tornado.escape.json_decode(user_json)
+        return None if not user_json else tornado.escape.json_decode(user_json)
 
 
 class MainHandler(BaseHandler, tornado.auth.FacebookGraphMixin):
@@ -76,9 +75,10 @@ class MainHandler(BaseHandler, tornado.auth.FacebookGraphMixin):
 class AuthLoginHandler(BaseHandler, tornado.auth.FacebookGraphMixin):
     @tornado.web.asynchronous
     def get(self):
-        my_url = (self.request.protocol + "://" + self.request.host +
-                  "/auth/login?next=" +
-                  tornado.escape.url_escape(self.get_argument("next", "/")))
+        my_url = (
+            f"{self.request.protocol}://{self.request.host}/auth/login?next="
+            + tornado.escape.url_escape(self.get_argument("next", "/"))
+        )
         if self.get_argument("code", False):
             self.get_authenticated_user(
                 redirect_uri=my_url,

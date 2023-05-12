@@ -43,15 +43,14 @@ class Application(tornado.web.Application):
 class BaseHandler(tornado.web.RequestHandler):
     def get_current_user(self):
         user_json = self.get_secure_cookie("authdemo_user")
-        if not user_json: return None
-        return tornado.escape.json_decode(user_json)
+        return None if not user_json else tornado.escape.json_decode(user_json)
 
 
 class MainHandler(BaseHandler):
     @tornado.web.authenticated
     def get(self):
         name = tornado.escape.xhtml_escape(self.current_user["name"])
-        self.write("Hello, " + name)
+        self.write(f"Hello, {name}")
         self.write("<br><br><a href=\"/auth/logout\">Log out</a>")
 
 

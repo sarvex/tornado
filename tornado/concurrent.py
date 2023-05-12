@@ -219,9 +219,8 @@ class Future(object):
         self._clear_tb_log()
         if self._exc_info is not None:
             return self._exc_info[1]
-        else:
-            self._check_done()
-            return None
+        self._check_done()
+        return None
 
     def add_done_callback(self, fn):
         """Attaches the given callback to the `Future`.
@@ -312,10 +311,7 @@ class Future(object):
 
 TracebackFuture = Future
 
-if futures is None:
-    FUTURES = Future
-else:
-    FUTURES = (futures.Future, Future)
+FUTURES = Future if futures is None else (futures.Future, Future)
 
 
 def is_future(x):

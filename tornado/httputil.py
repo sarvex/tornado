@@ -132,8 +132,7 @@ class HTTPHeaders(dict):
         dict.__init__(self)
         self._as_list = {}
         self._last_key = None
-        if (len(args) == 1 and len(kwargs) == 0 and
-                isinstance(args[0], HTTPHeaders)):
+        if len(args) == 1 and not kwargs and isinstance(args[0], HTTPHeaders):
             # Copy constructor
             for k, v in args[0].get_all():
                 self.add(k, v)
@@ -149,9 +148,11 @@ class HTTPHeaders(dict):
         self._last_key = norm_name
         if norm_name in self:
             # bypass our override of __setitem__ since it modifies _as_list
-            dict.__setitem__(self, norm_name,
-                             native_str(self[norm_name]) + ',' +
-                             native_str(value))
+            dict.__setitem__(
+                self,
+                norm_name,
+                f'{native_str(self[norm_name])},{native_str(value)}',
+            )
             self._as_list[norm_name].append(value)
         else:
             self[norm_name] = value
@@ -181,7 +182,7 @@ class HTTPHeaders(dict):
         """
         if line[0].isspace():
             # continuation of a multi-line header
-            new_part = ' ' + line.lstrip()
+            new_part = f' {line.lstrip()}'
             self._as_list[self._last_key][-1] += new_part
             dict.__setitem__(self, self._last_key,
                              self[self._last_key] + new_part)
@@ -401,7 +402,7 @@ class HTTPServerRequest(object):
 
     def full_url(self):
         """Reconstructs the full URL for this request."""
-        return self.protocol + "://" + self.host + self.uri
+        return f"{self.protocol}://{self.host}{self.uri}"
 
     def request_time(self):
         """Returns the amount of time it took for this request to execute."""
@@ -447,8 +448,7 @@ class HTTPServerRequest(object):
     def __repr__(self):
         attrs = ("protocol", "host", "method", "uri", "version", "remote_ip")
         args = ", ".join(["%s=%r" % (n, getattr(self, n)) for n in attrs])
-        return "%s(%s, headers=%s)" % (
-            self.__class__.__name__, args, dict(self.headers))
+        return f"{self.__class__.__name__}({args}, headers={dict(self.headers)})"
 
 
 class HTTPInputError(Exception):
@@ -664,14 +664,12 @@ def _get_content_range(start, end, total):
     """
     start = start or 0
     end = (end or total) - 1
-    return "bytes %s-%s/%s" % (start, end, total)
+    return f"bytes {start}-{end}/{total}"
 
 
 def _int_or_none(val):
     val = val.strip()
-    if val == "":
-        return None
-    return int(val)
+    return None if val == "" else int(val)
 
 
 def parse_body_arguments(content_type, body, arguments, files, headers=None):
@@ -812,11 +810,10 @@ def parse_response_start_line(line):
     ResponseStartLine(version='HTTP/1.1', code=200, reason='OK')
     """
     line = native_str(line)
-    match = re.match("(HTTP/1.[0-9]) ([0-9]+) ([^\r]*)", line)
-    if not match:
+    if match := re.match("(HTTP/1.[0-9]) ([0-9]+) ([^\r]*)", line):
+        return ResponseStartLine(match[1], int(match[2]), match[3])
+    else:
         raise HTTPInputError("Error parsing response start line")
-    return ResponseStartLine(match.group(1), int(match.group(2)),
-                             match.group(3))
 
 # _parseparam and _parse_header are copied and modified from python2.7's cgi.py
 # The original 2.7 version of this code did not correctly support some
@@ -844,7 +841,7 @@ def _parse_header(line):
     Return the main content-type and a dictionary of options.
 
     """
-    parts = _parseparam(';' + line)
+    parts = _parseparam(f';{line}')
     key = next(parts)
     pdict = {}
     for p in parts:
@@ -877,7 +874,7 @@ def _encode_header(key, pdict):
             out.append(k)
         else:
             # TODO: quote if necessary.
-            out.append('%s=%s' % (k, v))
+            out.append(f'{k}={v}')
     return '; '.join(out)
 
 
@@ -893,10 +890,9 @@ def split_host_and_port(netloc):
 
     .. versionadded:: 4.1
     """
-    match = re.match(r'^(.+):(\d+)$', netloc)
-    if match:
-        host = match.group(1)
-        port = int(match.group(2))
+    if match := re.match(r'^(.+):(\d+)$', netloc):
+        host = match[1]
+        port = int(match[2])
     else:
         host = netloc
         port = None

@@ -193,9 +193,7 @@ class IOLoop(Configurable):
            `IOLoop.instance()`.
         """
         current = getattr(IOLoop._current, "instance", None)
-        if current is None and instance:
-            return IOLoop.instance()
-        return current
+        return IOLoop.instance() if current is None and instance else current
 
     def make_current(self):
         """Makes this the `IOLoop` for the current thread.
@@ -417,6 +415,7 @@ class IOLoop(Configurable):
                     future_cell[0] = TracebackFuture()
                     future_cell[0].set_result(result)
             self.add_future(future_cell[0], lambda future: self.stop())
+
         self.add_callback(run)
         if timeout is not None:
             timeout_handle = self.add_timeout(self.time() + timeout, self.stop)
@@ -424,7 +423,7 @@ class IOLoop(Configurable):
         if timeout is not None:
             self.remove_timeout(timeout_handle)
         if not future_cell[0].done():
-            raise TimeoutError('Operation timed out after %s seconds' % timeout)
+            raise TimeoutError(f'Operation timed out after {timeout} seconds')
         return future_cell[0].result()
 
     def time(self):
@@ -846,10 +845,7 @@ class PollIOLoop(IOLoop):
                         fd_obj, handler_func = self._handlers[fd]
                         handler_func(fd_obj, events)
                     except (OSError, IOError) as e:
-                        if errno_from_exception(e) == errno.EPIPE:
-                            # Happens when the client closes the connection
-                            pass
-                        else:
+                        if errno_from_exception(e) != errno.EPIPE:
                             self.handle_callback_exception(self._handlers.get(fd))
                     except Exception:
                         self.handle_callback_exception(self._handlers.get(fd))

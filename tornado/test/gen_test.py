@@ -244,36 +244,33 @@ class GenEngineTest(AsyncTestCase):
     def test_exception_in_yield(self):
         @gen.engine
         def f():
-            try:
+            with contextlib.suppress(gen.UnknownKeyError):
                 yield gen.Wait("k1")
                 raise Exception("did not get expected exception")
-            except gen.UnknownKeyError:
-                pass
             self.stop()
+
         self.run_gen(f)
 
     def test_resume_after_exception_in_yield(self):
         @gen.engine
         def f():
-            try:
+            with contextlib.suppress(gen.UnknownKeyError):
                 yield gen.Wait("k1")
                 raise Exception("did not get expected exception")
-            except gen.UnknownKeyError:
-                pass
             (yield gen.Callback("k2"))("v2")
             self.assertEqual((yield gen.Wait("k2")), "v2")
             self.stop()
+
         self.run_gen(f)
 
     def test_orphaned_callback(self):
         @gen.engine
         def f():
             self.orphaned_callback = yield gen.Callback(1)
-        try:
+
+        with contextlib.suppress(gen.LeakedCallbackError):
             self.run_gen(f)
             raise Exception("did not get expected exception")
-        except gen.LeakedCallbackError:
-            pass
         self.orphaned_callback()
 
     def test_multi(self):
@@ -354,7 +351,7 @@ class GenEngineTest(AsyncTestCase):
         # sure a large list stays reasonable.  On my laptop a list of
         # 2000 used to take 1.8s, now it takes 0.12.
         start = time.time()
-        yield [gen.Task(self.io_loop.add_callback) for i in range(2000)]
+        yield [gen.Task(self.io_loop.add_callback) for _ in range(2000)]
         end = time.time()
         self.assertLess(end - start, 1.0)
 
@@ -458,13 +455,12 @@ class GenEngineTest(AsyncTestCase):
         @gen.engine
         def outer():
             for i in range(10):
-                try:
+                with contextlib.suppress(ZeroDivisionError):
                     yield gen.Task(inner)
-                except ZeroDivisionError:
-                    pass
             stack_increase = len(stack_context._state.contexts) - initial_stack_depth
             self.assertTrue(stack_increase <= 2)
             self.stop()
+
         initial_stack_depth = len(stack_context._state.contexts)
         self.run_gen(outer)
 
@@ -1019,7 +1015,7 @@ class GenWebTest(AsyncHTTPTestCase):
         self.assertEqual(response.body, b"123")
 
     def test_task_handler(self):
-        response = self.fetch('/task?url=%s' % url_escape(self.get_url('/sequence')))
+        response = self.fetch(f"/task?url={url_escape(self.get_url('/sequence'))}")
         self.assertEqual(response.body, b"got response: 123")
 
     def test_exception_handler(self):
@@ -1152,8 +1148,7 @@ class WaitIteratorTest(AsyncTestCase):
                 self.assertTrue(dg.current_future == f2 and dr == 42,
                                 "WaitIterator dict status incorrect")
             else:
-                self.fail("got bad WaitIterator index {}".format(
-                    dg.current_index))
+                self.fail(f"got bad WaitIterator index {dg.current_index}")
 
             i += 1
 

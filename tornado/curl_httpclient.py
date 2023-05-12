@@ -42,7 +42,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         self._multi = pycurl.CurlMulti()
         self._multi.setopt(pycurl.M_TIMERFUNCTION, self._set_timeout)
         self._multi.setopt(pycurl.M_SOCKETFUNCTION, self._handle_socket)
-        self._curls = [self._curl_create() for i in range(max_clients)]
+        self._curls = [self._curl_create() for _ in range(max_clients)]
         self._free_list = self._curls[:]
         self._requests = collections.deque()
         self._fds = {}
@@ -83,17 +83,17 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         """Called by libcurl when it wants to change the file descriptors
         it cares about.
         """
-        event_map = {
-            pycurl.POLL_NONE: ioloop.IOLoop.NONE,
-            pycurl.POLL_IN: ioloop.IOLoop.READ,
-            pycurl.POLL_OUT: ioloop.IOLoop.WRITE,
-            pycurl.POLL_INOUT: ioloop.IOLoop.READ | ioloop.IOLoop.WRITE
-        }
         if event == pycurl.POLL_REMOVE:
             if fd in self._fds:
                 self.io_loop.remove_handler(fd)
                 del self._fds[fd]
         else:
+            event_map = {
+                pycurl.POLL_NONE: ioloop.IOLoop.NONE,
+                pycurl.POLL_IN: ioloop.IOLoop.READ,
+                pycurl.POLL_OUT: ioloop.IOLoop.WRITE,
+                pycurl.POLL_INOUT: ioloop.IOLoop.READ | ioloop.IOLoop.WRITE
+            }
             ioloop_event = event_map[event]
             # libcurl sometimes closes a socket and then opens a new
             # one using the same FD without giving us a POLL_NONE in
@@ -281,9 +281,13 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         if "Pragma" not in request.headers:
             request.headers["Pragma"] = ""
 
-        curl.setopt(pycurl.HTTPHEADER,
-                    ["%s: %s" % (native_str(k), native_str(v))
-                     for k, v in request.headers.get_all()])
+        curl.setopt(
+            pycurl.HTTPHEADER,
+            [
+                f"{native_str(k)}: {native_str(v)}"
+                for k, v in request.headers.get_all()
+            ],
+        )
 
         curl.setopt(pycurl.HEADERFUNCTION,
                     functools.partial(self._curl_header_callback,
@@ -322,8 +326,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
             curl.setopt(pycurl.PROXY, request.proxy_host)
             curl.setopt(pycurl.PROXYPORT, request.proxy_port)
             if request.proxy_username:
-                credentials = '%s:%s' % (request.proxy_username,
-                                         request.proxy_password)
+                credentials = f'{request.proxy_username}:{request.proxy_password}'
                 curl.setopt(pycurl.PROXYUSERPWD, credentials)
         else:
             curl.setopt(pycurl.PROXY, '')
@@ -336,15 +339,6 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
             curl.setopt(pycurl.SSL_VERIFYHOST, 0)
         if request.ca_certs is not None:
             curl.setopt(pycurl.CAINFO, request.ca_certs)
-        else:
-            # There is no way to restore pycurl.CAINFO to its default value
-            # (Using unsetopt makes it reject all certificates).
-            # I don't see any way to read the default value from python so it
-            # can be restored later.  We'll have to just leave CAINFO untouched
-            # if no ca_certs file was specified, and require that if any
-            # request uses a custom ca_certs file, they all must.
-            pass
-
         if request.allow_ipv6 is False:
             # Curl behaves reasonably when DNS resolution gives an ipv6 address
             # that we can't reach, so allow ipv6 unless the user asks to disable.
@@ -360,7 +354,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
             "PUT": pycurl.UPLOAD,
             "HEAD": pycurl.NOBODY,
         }
-        custom_methods = set(["DELETE", "OPTIONS", "PATCH"])
+        custom_methods = {"DELETE", "OPTIONS", "PATCH"}
         for o in curl_options.values():
             curl.setopt(o, False)
         if request.method in curl_options:
@@ -369,7 +363,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
         elif request.allow_nonstandard_methods or request.method in custom_methods:
             curl.setopt(pycurl.CUSTOMREQUEST, request.method)
         else:
-            raise KeyError('unknown method ' + request.method)
+            raise KeyError(f'unknown method {request.method}')
 
         # Handle curl's cryptic options for every individual HTTP method
         if request.method == "GET":
@@ -377,15 +371,14 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
                 raise ValueError('Body must be None for GET request')
         elif request.method in ("POST", "PUT") or request.body:
             if request.body is None:
-                raise ValueError(
-                    'Body must not be None for "%s" request'
-                    % request.method)
+                raise ValueError(f'Body must not be None for "{request.method}" request')
 
             request_buffer = BytesIO(utf8(request.body))
 
             def ioctl(cmd):
                 if cmd == curl.IOCMD_RESTARTREAD:
                     request_buffer.seek(0)
+
             curl.setopt(pycurl.READFUNCTION, request_buffer.read)
             curl.setopt(pycurl.IOCTLFUNCTION, ioctl)
             if request.method == "POST":
@@ -395,14 +388,14 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
                 curl.setopt(pycurl.INFILESIZE, len(request.body))
 
         if request.auth_username is not None:
-            userpwd = "%s:%s" % (request.auth_username, request.auth_password or '')
+            userpwd = f"{request.auth_username}:{request.auth_password or ''}"
 
             if request.auth_mode is None or request.auth_mode == "basic":
                 curl.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_BASIC)
             elif request.auth_mode == "digest":
                 curl.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_DIGEST)
             else:
-                raise ValueError("Unsupported auth_mode %s" % request.auth_mode)
+                raise ValueError(f"Unsupported auth_mode {request.auth_mode}")
 
             curl.setopt(pycurl.USERPWD, native_str(userpwd))
             curl_log.debug("%s %s (username: %r)", request.method, request.url,
@@ -443,7 +436,7 @@ class CurlAsyncHTTPClient(AsyncHTTPClient):
             headers.clear()
             try:
                 (__, __, reason) = httputil.parse_response_start_line(header_line)
-                header_line = "X-Http-Reason: %s" % reason
+                header_line = f"X-Http-Reason: {reason}"
             except httputil.HTTPInputError:
                 return
         if not header_line:

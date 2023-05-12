@@ -338,7 +338,7 @@ class CompressionTestMixin(object):
             compression_options=self.get_client_compression_options())
         # Send the same message three times so we can measure the
         # effect of the context_takeover options.
-        for i in range(3):
+        for _ in range(3):
             ws.write_message(self.MESSAGE)
             response = yield ws.read_message()
             self.assertEqual(response, self.MESSAGE)

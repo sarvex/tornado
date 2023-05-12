@@ -76,18 +76,20 @@ class BaseHandler(tornado.web.RequestHandler):
 class HomeHandler(BaseHandler):
     def get(self):
         entries = db.Query(Entry).order('-published').fetch(limit=5)
-        if not entries:
-            if not self.current_user or self.current_user.administrator:
-                self.redirect("/compose")
-                return
+        if not entries and (
+            not self.current_user or self.current_user.administrator
+        ):
+            self.redirect("/compose")
+            return
         self.render("home.html", entries=entries)
 
 
 class EntryHandler(BaseHandler):
     def get(self, slug):
-        entry = db.Query(Entry).filter("slug =", slug).get()
-        if not entry: raise tornado.web.HTTPError(404)
-        self.render("entry.html", entry=entry)
+        if entry := db.Query(Entry).filter("slug =", slug).get():
+            self.render("entry.html", entry=entry)
+        else:
+            raise tornado.web.HTTPError(404)
 
 
 class ArchiveHandler(BaseHandler):
@@ -112,8 +114,7 @@ class ComposeHandler(BaseHandler):
 
     @administrator
     def post(self):
-        key = self.get_argument("key", None)
-        if key:
+        if key := self.get_argument("key", None):
             entry = Entry.get(key)
             entry.title = self.get_argument("title")
             entry.body_source = self.get_argument("body_source")
@@ -139,7 +140,7 @@ class ComposeHandler(BaseHandler):
                 html=tornado.escape.linkify(self.get_argument("body_source")),
             )
         entry.put()
-        self.redirect("/entry/" + entry.slug)
+        self.redirect(f"/entry/{entry.slug}")
 
 
 class EntryModule(tornado.web.UIModule):

@@ -22,7 +22,7 @@ def e2(callback):
 
 @gen.engine
 def e1():
-    for i in range(10):
+    for _ in range(10):
         yield gen.Task(e2)
 
 @gen.coroutine
@@ -31,7 +31,7 @@ def c2():
 
 @gen.coroutine
 def c1():
-    for i in range(10):
+    for _ in range(10):
         yield c2()
 
 def main():

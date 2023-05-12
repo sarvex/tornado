@@ -61,8 +61,9 @@ class CaresResolver(Resolver):
             assert not callback_args.kwargs
             result, error = callback_args.args
             if error:
-                raise Exception('C-Ares returned error %s: %s while resolving %s' %
-                                (error, pycares.errno.strerror(error), host))
+                raise Exception(
+                    f'C-Ares returned error {error}: {pycares.errno.strerror(error)} while resolving {host}'
+                )
             addresses = result.addresses
         addrinfo = []
         for address in addresses:
@@ -72,7 +73,7 @@ class CaresResolver(Resolver):
                 address_family = socket.AF_INET6
             else:
                 address_family = socket.AF_UNSPEC
-            if family != socket.AF_UNSPEC and family != address_family:
+            if family not in [socket.AF_UNSPEC, address_family]:
                 raise Exception('Requested socket family %d but got %d' %
                                 (family, address_family))
             addrinfo.append((address_family, (address, port)))

@@ -108,12 +108,12 @@ class TCPServer(object):
                 raise KeyError('missing key "certfile" in ssl_options')
 
             if not os.path.exists(self.ssl_options['certfile']):
-                raise ValueError('certfile "%s" does not exist' %
-                                 self.ssl_options['certfile'])
+                raise ValueError(
+                    f"""certfile "{self.ssl_options['certfile']}" does not exist"""
+                )
             if ('keyfile' in self.ssl_options and
                     not os.path.exists(self.ssl_options['keyfile'])):
-                raise ValueError('keyfile "%s" does not exist' %
-                                 self.ssl_options['keyfile'])
+                raise ValueError(f"""keyfile "{self.ssl_options['keyfile']}" does not exist""")
 
     def listen(self, port, address=""):
         """Starts accepting connections on the given port.

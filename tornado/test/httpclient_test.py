@@ -31,13 +31,14 @@ class HelloWorldHandler(RequestHandler):
     def get(self):
         name = self.get_argument("name", "world")
         self.set_header("Content-Type", "text/plain")
-        self.finish("Hello %s!" % name)
+        self.finish(f"Hello {name}!")
 
 
 class PostHandler(RequestHandler):
     def post(self):
-        self.finish("Post arg1: %s, arg2: %s" % (
-            self.get_argument("arg1"), self.get_argument("arg2")))
+        self.finish(
+            f'Post arg1: {self.get_argument("arg1")}, arg2: {self.get_argument("arg2")}'
+        )
 
 
 class PutHandler(RequestHandler):
@@ -482,9 +483,9 @@ Transfer-Encoding: chunked
 
 class RequestProxyTest(unittest.TestCase):
     def test_request_set(self):
-        proxy = _RequestProxy(HTTPRequest('http://example.com/',
-                                          user_agent='foo'),
-                              dict())
+        proxy = _RequestProxy(
+            HTTPRequest('http://example.com/', user_agent='foo'), {}
+        )
         self.assertEqual(proxy.user_agent, 'foo')
 
     def test_default_set(self):
@@ -499,13 +500,11 @@ class RequestProxyTest(unittest.TestCase):
         self.assertEqual(proxy.proxy_host, 'foo')
 
     def test_neither_set(self):
-        proxy = _RequestProxy(HTTPRequest('http://example.com/'),
-                              dict())
+        proxy = _RequestProxy(HTTPRequest('http://example.com/'), {})
         self.assertIs(proxy.auth_username, None)
 
     def test_bad_attribute(self):
-        proxy = _RequestProxy(HTTPRequest('http://example.com/'),
-                              dict())
+        proxy = _RequestProxy(HTTPRequest('http://example.com/'), {})
         with self.assertRaises(AttributeError):
             proxy.foo
 

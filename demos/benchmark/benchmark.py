@@ -60,7 +60,7 @@ def main():
     parse_command_line()
     if options.ioloop:
         IOLoop.configure(options.ioloop)
-    for i in xrange(options.num_runs):
+    for _ in xrange(options.num_runs):
         run()
 
 def run():
@@ -68,9 +68,7 @@ def run():
     port = random.randrange(options.min_port, options.max_port)
     app.listen(port, address='127.0.0.1')
     signal.signal(signal.SIGCHLD, handle_sigchld)
-    args = ["ab"]
-    args.extend(["-n", str(options.n)])
-    args.extend(["-c", str(options.c)])
+    args = ["ab", *["-n", str(options.n)], *["-c", str(options.c)]]
     if options.keepalive:
         args.append("-k")
     if options.quiet:

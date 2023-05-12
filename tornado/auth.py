@@ -133,12 +133,13 @@ def _auth_return_future(f):
         def handle_exception(typ, value, tb):
             if future.done():
                 return False
-            else:
-                future.set_exc_info((typ, value, tb))
-                return True
+            future.set_exc_info((typ, value, tb))
+            return True
+
         with ExceptionStackContext(handle_exception):
             f(*args, **kwargs)
         return future
+
     return wrapper
 
 
@@ -174,7 +175,7 @@ class OpenIdMixin(object):
         """
         callback_uri = callback_uri or self.request.uri
         args = self._openid_args(callback_uri, ax_attrs=ax_attrs)
-        self.redirect(self._OPENID_ENDPOINT + "?" + urllib_parse.urlencode(args))
+        self.redirect(f"{self._OPENID_ENDPOINT}?{urllib_parse.urlencode(args)}")
         callback()
 
     @_auth_return_future
@@ -190,7 +191,7 @@ class OpenIdMixin(object):
         The result of this method will generally be used to set a cookie.
         """
         # Verify the OpenID response via direct request to the OP
-        args = dict((k, v[-1]) for k, v in self.request.arguments.items())
+        args = {k: v[-1] for k, v in self.request.arguments.items()}
         args["openid.mode"] = u("check_authentication")
         url = self._OPENID_ENDPOINT
         if http_client is None:
@@ -212,39 +213,35 @@ class OpenIdMixin(object):
             "openid.mode": "checkid_setup",
         }
         if ax_attrs:
-            args.update({
+            args |= {
                 "openid.ns.ax": "http://openid.net/srv/ax/1.0",
                 "openid.ax.mode": "fetch_request",
-            })
+            }
             ax_attrs = set(ax_attrs)
             required = []
             if "name" in ax_attrs:
-                ax_attrs -= set(["name", "firstname", "fullname", "lastname"])
+                ax_attrs -= {"name", "firstname", "fullname", "lastname"}
                 required += ["firstname", "fullname", "lastname"]
-                args.update({
-                    "openid.ax.type.firstname":
-                    "http://axschema.org/namePerson/first",
-                    "openid.ax.type.fullname":
-                    "http://axschema.org/namePerson",
-                    "openid.ax.type.lastname":
-                    "http://axschema.org/namePerson/last",
-                })
+                args |= {
+                    "openid.ax.type.firstname": "http://axschema.org/namePerson/first",
+                    "openid.ax.type.fullname": "http://axschema.org/namePerson",
+                    "openid.ax.type.lastname": "http://axschema.org/namePerson/last",
+                }
             known_attrs = {
                 "email": "http://axschema.org/contact/email",
                 "language": "http://axschema.org/pref/language",
                 "username": "http://axschema.org/namePerson/friendly",
             }
             for name in ax_attrs:
-                args["openid.ax.type." + name] = known_attrs[name]
+                args[f"openid.ax.type.{name}"] = known_attrs[name]
                 required.append(name)
             args["openid.ax.required"] = ",".join(required)
         if oauth_scope:
-            args.update({
-                "openid.ns.oauth":
-                "http://specs.openid.net/extensions/oauth/1.0",
+            args |= {
+                "openid.ns.oauth": "http://specs.openid.net/extensions/oauth/1.0",
                 "openid.oauth.consumer": self.request.host.split(":")[0],
                 "openid.oauth.scope": oauth_scope,
-            })
+            }
         return args
 
     def _on_authentication_verified(self, future, response):
@@ -258,23 +255,21 @@ class OpenIdMixin(object):
         ax_ns = None
         for name in self.request.arguments:
             if name.startswith("openid.ns.") and \
-                    self.get_argument(name) == u("http://openid.net/srv/ax/1.0"):
+                        self.get_argument(name) == u("http://openid.net/srv/ax/1.0"):
                 ax_ns = name[10:]
                 break
 
         def get_ax_arg(uri):
             if not ax_ns:
                 return u("")
-            prefix = "openid." + ax_ns + ".type."
+            prefix = f"openid.{ax_ns}.type."
             ax_name = None
             for name in self.request.arguments.keys():
                 if self.get_argument(name) == uri and name.startswith(prefix):
                     part = name[len(prefix):]
-                    ax_name = "openid." + ax_ns + ".value." + part
+                    ax_name = f"openid.{ax_ns}.value.{part}"
                     break
-            if not ax_name:
-                return u("")
-            return self.get_argument(ax_name, u(""))
+            return u("") if not ax_name else self.get_argument(ax_name, u(""))
 
         email = get_ax_arg("http://axschema.org/contact/email")
         name = get_ax_arg("http://axschema.org/namePerson")
@@ -282,7 +277,7 @@ class OpenIdMixin(object):
         last_name = get_ax_arg("http://axschema.org/namePerson/last")
         username = get_ax_arg("http://axschema.org/namePerson/friendly")
         locale = get_ax_arg("http://axschema.org/pref/language").lower()
-        user = dict()
+        user = {}
         name_parts = []
         if first_name:
             user["first_name"] = first_name
@@ -431,31 +426,31 @@ class OAuthMixin(object):
                 args["oauth_callback"] = urlparse.urljoin(
                     self.request.full_url(), callback_uri)
             if extra_params:
-                args.update(extra_params)
+                args |= extra_params
             signature = _oauth10a_signature(consumer_token, "GET", url, args)
         else:
             signature = _oauth_signature(consumer_token, "GET", url, args)
 
         args["oauth_signature"] = signature
-        return url + "?" + urllib_parse.urlencode(args)
+        return f"{url}?{urllib_parse.urlencode(args)}"
 
     def _on_request_token(self, authorize_url, callback_uri, callback,
                           response):
         if response.error:
-            raise Exception("Could not get request token: %s" % response.error)
+            raise Exception(f"Could not get request token: {response.error}")
         request_token = _oauth_parse_response(response.body)
         data = (base64.b64encode(escape.utf8(request_token["key"])) + b"|" +
                 base64.b64encode(escape.utf8(request_token["secret"])))
         self.set_cookie("_oauth_request_token", data)
         args = dict(oauth_token=request_token["key"])
         if callback_uri == "oob":
-            self.finish(authorize_url + "?" + urllib_parse.urlencode(args))
+            self.finish(f"{authorize_url}?{urllib_parse.urlencode(args)}")
             callback()
             return
         elif callback_uri:
             args["oauth_callback"] = urlparse.urljoin(
                 self.request.full_url(), callback_uri)
-        self.redirect(authorize_url + "?" + urllib_parse.urlencode(args))
+        self.redirect(f"{authorize_url}?{urllib_parse.urlencode(args)}")
         callback()
 
     def _oauth_access_token_url(self, request_token):
@@ -480,7 +475,7 @@ class OAuthMixin(object):
                                          request_token)
 
         args["oauth_signature"] = signature
-        return url + "?" + urllib_parse.urlencode(args)
+        return f"{url}?{urllib_parse.urlencode(args)}"
 
     def _on_access_token(self, future, response):
         if response.error:
@@ -548,9 +543,8 @@ class OAuthMixin(object):
             oauth_nonce=escape.to_basestring(binascii.b2a_hex(uuid.uuid4().bytes)),
             oauth_version="1.0",
         )
-        args = {}
-        args.update(base_args)
-        args.update(parameters)
+        args = dict(base_args)
+        args |= parameters
         if getattr(self, "_OAUTH_VERSION", "1.0a") == "1.0a":
             signature = _oauth10a_signature(consumer_token, method, url, args,
                                             access_token)
@@ -603,7 +597,7 @@ class OAuth2Mixin(object):
             "response_type": response_type
         }
         if extra_params:
-            args.update(extra_params)
+            args |= extra_params
         if scope:
             args['scope'] = ' '.join(scope)
         self.redirect(
@@ -621,7 +615,7 @@ class OAuth2Mixin(object):
             client_secret=client_secret,
         )
         if extra_params:
-            args.update(extra_params)
+            args |= extra_params
         return url_concat(url, args)
 
 
@@ -732,15 +726,14 @@ class TwitterMixin(OAuthMixin):
             url = self._TWITTER_BASE_URL + path + ".json"
         # Add the OAuth resource request signature if we have credentials
         if access_token:
-            all_args = {}
-            all_args.update(args)
-            all_args.update(post_args or {})
+            all_args = dict(args)
+            all_args |= (post_args or {})
             method = "POST" if post_args is not None else "GET"
             oauth = self._oauth_request_parameters(
                 url, access_token, all_args, method=method)
-            args.update(oauth)
+            args |= oauth
         if args:
-            url += "?" + urllib_parse.urlencode(args)
+            url += f"?{urllib_parse.urlencode(args)}"
         http = self.get_auth_http_client()
         http_callback = functools.partial(self._on_twitter_request, callback)
         if post_args is not None:
@@ -751,9 +744,11 @@ class TwitterMixin(OAuthMixin):
 
     def _on_twitter_request(self, future, response):
         if response.error:
-            future.set_exception(AuthError(
-                "Error response %s fetching %s" % (response.error,
-                                                   response.request.url)))
+            future.set_exception(
+                AuthError(
+                    f"Error response {response.error} fetching {response.request.url}"
+                )
+            )
             return
         future.set_result(escape.json_decode(response.body))
 
@@ -859,17 +854,16 @@ class FriendFeedMixin(OAuthMixin):
 
         """
         # Add the OAuth resource request signature if we have credentials
-        url = "http://friendfeed-api.com/v2" + path
+        url = f"http://friendfeed-api.com/v2{path}"
         if access_token:
-            all_args = {}
-            all_args.update(args)
-            all_args.update(post_args or {})
+            all_args = dict(args)
+            all_args |= (post_args or {})
             method = "POST" if post_args is not None else "GET"
             oauth = self._oauth_request_parameters(
                 url, access_token, all_args, method=method)
-            args.update(oauth)
+            args |= oauth
         if args:
-            url += "?" + urllib_parse.urlencode(args)
+            url += f"?{urllib_parse.urlencode(args)}"
         callback = functools.partial(self._on_friendfeed_request, callback)
         http = self.get_auth_http_client()
         if post_args is not None:
@@ -880,9 +874,11 @@ class FriendFeedMixin(OAuthMixin):
 
     def _on_friendfeed_request(self, future, response):
         if response.error:
-            future.set_exception(AuthError(
-                "Error response %s fetching %s" % (response.error,
-                                                   response.request.url)))
+            future.set_exception(
+                AuthError(
+                    f"Error response {response.error} fetching {response.request.url}"
+                )
+            )
             return
         future.set_result(escape.json_decode(response.body))
 
@@ -974,21 +970,22 @@ class GoogleMixin(OpenIdMixin, OAuthMixin):
         callback_uri = callback_uri or self.request.uri
         args = self._openid_args(callback_uri, ax_attrs=ax_attrs,
                                  oauth_scope=oauth_scope)
-        self.redirect(self._OPENID_ENDPOINT + "?" + urllib_parse.urlencode(args))
+        self.redirect(f"{self._OPENID_ENDPOINT}?{urllib_parse.urlencode(args)}")
         callback()
 
     @_auth_return_future
     def get_authenticated_user(self, callback):
         """Fetches the authenticated user data upon redirect."""
-        # Look to see if we are doing combined OpenID/OAuth
-        oauth_ns = ""
-        for name, values in self.request.arguments.items():
-            if name.startswith("openid.ns.") and \
-                    values[-1] == b"http://specs.openid.net/extensions/oauth/1.0":
-                oauth_ns = name[10:]
-                break
-        token = self.get_argument("openid." + oauth_ns + ".request_token", "")
-        if token:
+        oauth_ns = next(
+            (
+                name[10:]
+                for name, values in self.request.arguments.items()
+                if name.startswith("openid.ns.")
+                and values[-1] == b"http://specs.openid.net/extensions/oauth/1.0"
+            ),
+            "",
+        )
+        if token := self.get_argument(f"openid.{oauth_ns}.request_token", ""):
             http = self.get_auth_http_client()
             token = dict(key=token, secret="")
             http.fetch(self._oauth_access_token_url(token),
@@ -1076,7 +1073,7 @@ class GoogleOAuth2Mixin(OAuth2Mixin):
     def _on_access_token(self, future, response):
         """Callback function for the exchange to the access token."""
         if response.error:
-            future.set_exception(AuthError('Google auth error: %s' % str(response)))
+            future.set_exception(AuthError(f'Google auth error: {str(response)}'))
             return
 
         args = escape.json_decode(response.body)
@@ -1248,7 +1245,7 @@ class FacebookMixin(object):
         self.require_setting("facebook_api_key", "Facebook Connect")
         self.require_setting("facebook_secret", "Facebook Connect")
         if not method.startswith("facebook."):
-            method = "facebook." + method
+            method = f"facebook.{method}"
         args["api_key"] = self.settings["facebook_api_key"]
         args["v"] = "1.0"
         args["method"] = method
@@ -1256,7 +1253,7 @@ class FacebookMixin(object):
         args["format"] = "json"
         args["sig"] = self._signature(args)
         url = "http://api.facebook.com/restserver.php?" + \
-            urllib_parse.urlencode(args)
+                urllib_parse.urlencode(args)
         http = self.get_auth_http_client()
         http.fetch(url, callback=functools.partial(
             self._parse_response, callback))
@@ -1297,7 +1294,7 @@ class FacebookMixin(object):
         callback(json)
 
     def _signature(self, args):
-        parts = ["%s=%s" % (n, args[n]) for n in sorted(args.keys())]
+        parts = [f"{n}={args[n]}" for n in sorted(args.keys())]
         body = "".join(parts) + self.settings["facebook_secret"]
         if isinstance(body, unicode_type):
             body = body.encode("utf-8")
@@ -1357,8 +1354,7 @@ class FacebookGraphMixin(OAuth2Mixin):
             "client_secret": client_secret,
         }
 
-        fields = set(['id', 'name', 'first_name', 'last_name',
-                      'locale', 'picture', 'link'])
+        fields = {'id', 'name', 'first_name', 'last_name', 'locale', 'picture', 'link'}
         if extra_fields:
             fields.update(extra_fields)
 
@@ -1369,7 +1365,7 @@ class FacebookGraphMixin(OAuth2Mixin):
     def _on_access_token(self, redirect_uri, client_id, client_secret,
                          future, fields, response):
         if response.error:
-            future.set_exception(AuthError('Facebook auth error: %s' % str(response)))
+            future.set_exception(AuthError(f'Facebook auth error: {str(response)}'))
             return
 
         args = escape.parse_qs_bytes(escape.native_str(response.body))
@@ -1391,11 +1387,10 @@ class FacebookGraphMixin(OAuth2Mixin):
             future.set_result(None)
             return
 
-        fieldmap = {}
-        for field in fields:
-            fieldmap[field] = user.get(field)
-
-        fieldmap.update({"access_token": session["access_token"], "session_expires": session.get("expires")})
+        fieldmap = {field: user.get(field) for field in fields} | {
+            "access_token": session["access_token"],
+            "session_expires": session.get("expires"),
+        }
         future.set_result(fieldmap)
 
     @_auth_return_future
@@ -1448,10 +1443,10 @@ class FacebookGraphMixin(OAuth2Mixin):
         all_args = {}
         if access_token:
             all_args["access_token"] = access_token
-            all_args.update(args)
+            all_args |= args
 
         if all_args:
-            url += "?" + urllib_parse.urlencode(all_args)
+            url += f"?{urllib_parse.urlencode(all_args)}"
         callback = functools.partial(self._on_facebook_request, callback)
         http = self.get_auth_http_client()
         if post_args is not None:
@@ -1462,8 +1457,11 @@ class FacebookGraphMixin(OAuth2Mixin):
 
     def _on_facebook_request(self, future, response):
         if response.error:
-            future.set_exception(AuthError("Error response %s fetching %s" %
-                                           (response.error, response.request.url)))
+            future.set_exception(
+                AuthError(
+                    f"Error response {response.error} fetching {response.request.url}"
+                )
+            )
             return
 
         future.set_result(escape.json_decode(response.body))
@@ -1484,13 +1482,16 @@ def _oauth_signature(consumer_token, method, url, parameters={}, token=None):
     """
     parts = urlparse.urlparse(url)
     scheme, netloc, path = parts[:3]
-    normalized_url = scheme.lower() + "://" + netloc.lower() + path
+    normalized_url = f"{scheme.lower()}://{netloc.lower()}{path}"
 
-    base_elems = []
-    base_elems.append(method.upper())
+    base_elems = [method.upper()]
     base_elems.append(normalized_url)
-    base_elems.append("&".join("%s=%s" % (k, _oauth_escape(str(v)))
-                               for k, v in sorted(parameters.items())))
+    base_elems.append(
+        "&".join(
+            f"{k}={_oauth_escape(str(v))}"
+            for k, v in sorted(parameters.items())
+        )
+    )
     base_string = "&".join(_oauth_escape(e) for e in base_elems)
 
     key_elems = [escape.utf8(consumer_token["secret"])]
@@ -1508,13 +1509,16 @@ def _oauth10a_signature(consumer_token, method, url, parameters={}, token=None):
     """
     parts = urlparse.urlparse(url)
     scheme, netloc, path = parts[:3]
-    normalized_url = scheme.lower() + "://" + netloc.lower() + path
+    normalized_url = f"{scheme.lower()}://{netloc.lower()}{path}"
 
-    base_elems = []
-    base_elems.append(method.upper())
+    base_elems = [method.upper()]
     base_elems.append(normalized_url)
-    base_elems.append("&".join("%s=%s" % (k, _oauth_escape(str(v)))
-                               for k, v in sorted(parameters.items())))
+    base_elems.append(
+        "&".join(
+            f"{k}={_oauth_escape(str(v))}"
+            for k, v in sorted(parameters.items())
+        )
+    )
 
     base_string = "&".join(_oauth_escape(e) for e in base_elems)
     key_elems = [escape.utf8(urllib_parse.quote(consumer_token["secret"], safe='~'))]
@@ -1541,5 +1545,5 @@ def _oauth_parse_response(body):
 
     # Add the extra parameters the Provider included to the token
     special = ("oauth_token", "oauth_token_secret")
-    token.update((k, p[k][0]) for k in p if k not in special)
+    token |= ((k, p[k][0]) for k in p if k not in special)
     return token

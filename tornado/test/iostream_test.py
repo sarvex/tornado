@@ -456,7 +456,7 @@ class TestIOStreamMixin(object):
                 raise unittest.SkipTest(
                     "pypy gc causes problems with openssl")
             NUM_KB = 4096
-            for i in range(NUM_KB):
+            for _ in range(NUM_KB):
                 client.write(b"A" * 1024)
             client.write(b"\r\n")
             server.read_until(b"\r\n", self.stop)
@@ -706,7 +706,7 @@ class TestIOStreamMixin(object):
         server, client = self.make_iostream_pair(max_buffer_size=10 * 1024)
         try:
             server.write(b"a" * 1024 * 100)
-            for i in range(100):
+            for _ in range(100):
                 client.read_bytes(1024, self.stop)
                 data = self.wait()
                 self.assertEqual(data, b"a" * 1024)
@@ -721,7 +721,7 @@ class TestIOStreamMixin(object):
         server, client = self.make_iostream_pair(max_buffer_size=10 * 1024)
         try:
             server.write((b"a" * 1023 + b"\n") * 100)
-            for i in range(100):
+            for _ in range(100):
                 client.read_until(b"\n", self.stop, max_bytes=4096)
                 data = self.wait()
                 self.assertEqual(data, b"a" * 1023 + b"\n")
@@ -742,7 +742,7 @@ class TestIOStreamMixin(object):
             self.wait()
             # The client's writes have been blocked; the server can
             # continue to read gradually.
-            for i in range(9):
+            for _ in range(9):
                 server.read_bytes(MB, self.stop)
                 self.wait()
         finally:

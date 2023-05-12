@@ -55,7 +55,7 @@ class BaseAsyncIOLoop(IOLoop):
     def add_handler(self, fd, handler, events):
         fd, fileobj = self.split_fd(fd)
         if fd in self.handlers:
-            raise ValueError("fd %s added twice" % fd)
+            raise ValueError(f"fd {fd} added twice")
         self.handlers[fd] = (fileobj, stack_context.wrap(handler))
         if events & IOLoop.READ:
             self.asyncio_loop.add_reader(
@@ -73,19 +73,17 @@ class BaseAsyncIOLoop(IOLoop):
                 self.asyncio_loop.add_reader(
                     fd, self._handle_events, fd, IOLoop.READ)
                 self.readers.add(fd)
-        else:
-            if fd in self.readers:
-                self.asyncio_loop.remove_reader(fd)
-                self.readers.remove(fd)
+        elif fd in self.readers:
+            self.asyncio_loop.remove_reader(fd)
+            self.readers.remove(fd)
         if events & IOLoop.WRITE:
             if fd not in self.writers:
                 self.asyncio_loop.add_writer(
                     fd, self._handle_events, fd, IOLoop.WRITE)
                 self.writers.add(fd)
-        else:
-            if fd in self.writers:
-                self.asyncio_loop.remove_writer(fd)
-                self.writers.remove(fd)
+        elif fd in self.writers:
+            self.asyncio_loop.remove_writer(fd)
+            self.writers.remove(fd)
 
     def remove_handler(self, fd):
         fd, fileobj = self.split_fd(fd)

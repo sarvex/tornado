@@ -138,10 +138,7 @@ def load_translations(directory):
                 continue
             row = [escape.to_unicode(c).strip() for c in row]
             english, translation = row[:2]
-            if len(row) > 2:
-                plural = row[2] or "unknown"
-            else:
-                plural = "unknown"
+            plural = row[2] or "unknown" if len(row) > 2 else "unknown"
             if plural not in ("plural", "singular", "unknown"):
                 gen_log.error("Unrecognized plural indicator %r in %s line %d",
                               plural, path, i + 1)
@@ -184,7 +181,7 @@ def load_gettext_translations(directory, domain):
         if os.path.isfile(os.path.join(directory, lang)):
             continue
         try:
-            os.stat(os.path.join(directory, lang, "LC_MESSAGES", domain + ".mo"))
+            os.stat(os.path.join(directory, lang, "LC_MESSAGES", f"{domain}.mo"))
             _translations[lang] = gettext.translation(domain, directory,
                                                       languages=[lang])
         except Exception as e:
@@ -217,7 +214,7 @@ class Locale(object):
             if len(parts) > 2:
                 continue
             elif len(parts) == 2:
-                code = parts[0].lower() + "_" + parts[1].upper()
+                code = f"{parts[0].lower()}_{parts[1].upper()}"
             if code in _supported_locales:
                 return cls.get(code)
             if parts[0].lower() in _supported_locales:
@@ -474,21 +471,23 @@ class GettextLocale(Locale):
         """
         if plural_message is not None:
             assert count is not None
-            msgs_with_ctxt = ("%s%s%s" % (context, CONTEXT_SEPARATOR, message),
-                          "%s%s%s" % (context, CONTEXT_SEPARATOR, plural_message),
-                          count)
+            msgs_with_ctxt = (
+                f"{context}{CONTEXT_SEPARATOR}{message}",
+                f"{context}{CONTEXT_SEPARATOR}{plural_message}",
+                count,
+            )
             result = self.ngettext(*msgs_with_ctxt)
             if CONTEXT_SEPARATOR in result:
                 # Translation not found
                 result = self.ngettext(message, plural_message, count)
-            return result
         else:
-            msg_with_ctxt = "%s%s%s" % (context, CONTEXT_SEPARATOR, message)
+            msg_with_ctxt = f"{context}{CONTEXT_SEPARATOR}{message}"
             result = self.gettext(msg_with_ctxt)
             if CONTEXT_SEPARATOR in result:
                 # Translation not found
                 result = message
-            return result
+
+        return result
 
 LOCALE_NAMES = {
     "af_ZA": {"name_en": u("Afrikaans"), "name": u("Afrikaans")},

@@ -227,7 +227,7 @@ class NullContext(object):
 def _remove_deactivated(contexts):
     """Remove deactivated handlers from the chain"""
     # Clean ctx handlers
-    stack_contexts = tuple([h for h in contexts[0] if h.active])
+    stack_contexts = tuple(h for h in contexts[0] if h.active)
 
     # Find new head
     head = contexts[1]

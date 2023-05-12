@@ -45,6 +45,7 @@ incorrectly.
 
 """
 
+
 from __future__ import absolute_import, division, print_function, with_statement
 
 import os
@@ -70,15 +71,8 @@ import sys
 # we cannot reliably reconstruct the original command line
 # (http://bugs.python.org/issue14208).
 
-if __name__ == "__main__":
-    # This sys.path manipulation must come before our imports (as much
-    # as possible - if we introduced a tornado.sys or tornado.os
-    # module we'd be in trouble), or else our imports would become
-    # relative again despite the future import.
-    #
-    # There is a separate __main__ block at the end of the file to call main().
-    if sys.path[0] == os.path.dirname(__file__):
-        del sys.path[0]
+if __name__ == "__main__" and sys.path[0] == os.path.dirname(__file__):
+    del sys.path[0]
 
 import functools
 import logging
@@ -219,7 +213,7 @@ def _reload():
     # string, we were (probably) invoked with -m and the effective path
     # is about to change on re-exec.  Add the current directory to $PYTHONPATH
     # to ensure that the new process sees the same path we did.
-    path_prefix = '.' + os.pathsep
+    path_prefix = f'.{os.pathsep}'
     if (sys.path[0] == '' and
             not os.environ.get("PYTHONPATH", "").startswith(path_prefix)):
         os.environ["PYTHONPATH"] = (path_prefix +

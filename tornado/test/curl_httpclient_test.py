@@ -36,9 +36,6 @@ class DigestAuthHandler(RequestHandler):
         opaque = 'asdf'
         # Real implementations would use a random nonce.
         nonce = "1234"
-        username = 'foo'
-        password = 'bar'
-
         auth_header = self.request.headers.get('Authorization', None)
         if auth_header is not None:
             auth_mode, params = auth_header.split(' ', 1)
@@ -52,21 +49,24 @@ class DigestAuthHandler(RequestHandler):
             assert param_dict['realm'] == realm
             assert param_dict['opaque'] == opaque
             assert param_dict['nonce'] == nonce
+            username = 'foo'
             assert param_dict['username'] == username
             assert param_dict['uri'] == self.request.path
-            h1 = md5(utf8('%s:%s:%s' % (username, realm, password))).hexdigest()
-            h2 = md5(utf8('%s:%s' % (self.request.method,
-                                     self.request.path))).hexdigest()
-            digest = md5(utf8('%s:%s:%s' % (h1, nonce, h2))).hexdigest()
+            password = 'bar'
+
+            h1 = md5(utf8(f'{username}:{realm}:{password}')).hexdigest()
+            h2 = md5(utf8(f'{self.request.method}:{self.request.path}')).hexdigest()
+            digest = md5(utf8(f'{h1}:{nonce}:{h2}')).hexdigest()
             if digest == param_dict['response']:
                 self.write('ok')
             else:
                 self.write('fail')
         else:
             self.set_status(401)
-            self.set_header('WWW-Authenticate',
-                            'Digest realm="%s", nonce="%s", opaque="%s"' %
-                            (realm, nonce, opaque))
+            self.set_header(
+                'WWW-Authenticate',
+                f'Digest realm="{realm}", nonce="{nonce}", opaque="{opaque}"',
+            )
 
 
 class CustomReasonHandler(RequestHandler):

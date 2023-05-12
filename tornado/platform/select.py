@@ -37,7 +37,7 @@ class _Select(object):
 
     def register(self, fd, events):
         if fd in self.read_fds or fd in self.write_fds or fd in self.error_fds:
-            raise IOError("fd %s already registered" % fd)
+            raise IOError(f"fd {fd} already registered")
         if events & IOLoop.READ:
             self.read_fds.add(fd)
         if events & IOLoop.WRITE:

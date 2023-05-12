@@ -273,18 +273,22 @@ class RequestHandler(object):
         may not be called promptly after the end user closes their
         connection.
         """
-        if _has_stream_request_body(self.__class__):
-            if not self.request.body.done():
-                self.request.body.set_exception(iostream.StreamClosedError())
-                self.request.body.exception()
+        if (
+            _has_stream_request_body(self.__class__)
+            and not self.request.body.done()
+        ):
+            self.request.body.set_exception(iostream.StreamClosedError())
+            self.request.body.exception()
 
     def clear(self):
         """Resets all headers and content for this response."""
-        self._headers = httputil.HTTPHeaders({
-            "Server": "TornadoServer/%s" % tornado.version,
-            "Content-Type": "text/html; charset=UTF-8",
-            "Date": httputil.format_timestamp(time.time()),
-        })
+        self._headers = httputil.HTTPHeaders(
+            {
+                "Server": f"TornadoServer/{tornado.version}",
+                "Content-Type": "text/html; charset=UTF-8",
+                "Date": httputil.format_timestamp(time.time()),
+            }
+        )
         self.set_default_headers()
         self._write_buffer = []
         self._status_code = 200
@@ -544,10 +548,8 @@ class RequestHandler(object):
 
             # skip falsy values for httponly and secure flags because
             # SimpleCookie sets them regardless
-            if k in ['httponly', 'secure'] and not v:
-                continue
-
-            morsel[k] = v
+            if k not in ['httponly', 'secure'] or v:
+                morsel[k] = v
 
     def clear_cookie(self, name, path="/", domain=None):
         """Deletes the cookie with the given name.
@@ -721,6 +723,7 @@ class RequestHandler(object):
 
         def is_absolute(path):
             return any(path.startswith(x) for x in ["/", "http:", "https:"])
+
         if js_files:
             # Maintain order of JavaScript files given by modules
             paths = []
@@ -731,14 +734,15 @@ class RequestHandler(object):
                 if path not in unique_paths:
                     paths.append(path)
                     unique_paths.add(path)
-            js = ''.join('<script src="' + escape.xhtml_escape(p) +
-                         '" type="text/javascript"></script>'
-                         for p in paths)
+            js = ''.join(
+                f'<script src="{escape.xhtml_escape(p)}" type="text/javascript"></script>'
+                for p in paths
+            )
             sloc = html.rindex(b'</body>')
             html = html[:sloc] + utf8(js) + b'\n' + html[sloc:]
         if js_embed:
             js = b'<script type="text/javascript">\n//<![CDATA[\n' + \
-                b'\n'.join(js_embed) + b'\n//]]>\n</script>'
+                    b'\n'.join(js_embed) + b'\n//]]>\n</script>'
             sloc = html.rindex(b'</body>')
             html = html[:sloc] + js + b'\n' + html[sloc:]
         if css_files:
@@ -750,14 +754,18 @@ class RequestHandler(object):
                 if path not in unique_paths:
                     paths.append(path)
                     unique_paths.add(path)
-            css = ''.join('<link href="' + escape.xhtml_escape(p) + '" '
-                          'type="text/css" rel="stylesheet"/>'
-                          for p in paths)
+            css = ''.join(
+                (
+                    f'<link href="{escape.xhtml_escape(p)}' + '" '
+                    'type="text/css" rel="stylesheet"/>'
+                )
+                for p in paths
+            )
             hloc = html.index(b'</head>')
             html = html[:hloc] + utf8(css) + b'\n' + html[hloc:]
         if css_embed:
             css = b'<style type="text/css">\n' + b'\n'.join(css_embed) + \
-                b'\n</style>'
+                    b'\n</style>'
             hloc = html.index(b'</head>')
             html = html[:hloc] + css + b'\n' + html[hloc:]
         if html_heads:
@@ -813,7 +821,7 @@ class RequestHandler(object):
             xsrf_form_html=self.xsrf_form_html,
             reverse_url=self.reverse_url
         )
-        namespace.update(self.ui)
+        namespace |= self.ui
         return namespace
 
     def create_template_loader(self, template_path):
@@ -852,7 +860,7 @@ class RequestHandler(object):
             self._headers_written = True
             for transform in self._transforms:
                 self._status_code, self._headers, chunk = \
-                    transform.transform_first_chunk(
+                        transform.transform_first_chunk(
                         self._status_code, self._headers,
                         chunk, include_footers)
             # Ignore the chunk and only write the headers for HEAD requests
@@ -874,13 +882,11 @@ class RequestHandler(object):
         else:
             for transform in self._transforms:
                 chunk = transform.transform_chunk(chunk, include_footers)
-            # Ignore the chunk and only write the headers for HEAD requests
             if self.request.method != "HEAD":
                 return self.request.connection.write(chunk, callback=callback)
-            else:
-                future = Future()
-                future.set_result(None)
-                return future
+            future = Future()
+            future.set_result(None)
+            return future
 
     def finish(self, chunk=None):
         """Finishes this response, ending the HTTP request."""
@@ -1138,8 +1144,7 @@ class RequestHandler(object):
           for version 1 cookies)
         """
         if not hasattr(self, '_raw_xsrf_token'):
-            cookie = self.get_cookie("_xsrf")
-            if cookie:
+            if cookie := self.get_cookie("_xsrf"):
                 version, token, timestamp = self._decode_xsrf_token(cookie)
             else:
                 version, token, timestamp = None, None, None
@@ -1156,21 +1161,17 @@ class RequestHandler(object):
         """
 
         try:
-            m = _signed_value_version_re.match(utf8(cookie))
-
-            if m:
+            if m := _signed_value_version_re.match(utf8(cookie)):
                 version = int(m.group(1))
-                if version == 2:
-                    _, mask, masked_token, timestamp = cookie.split("|")
-
-                    mask = binascii.a2b_hex(utf8(mask))
-                    token = _websocket_mask(
-                        mask, binascii.a2b_hex(utf8(masked_token)))
-                    timestamp = int(timestamp)
-                    return version, token, timestamp
-                else:
+                if version != 2:
                     # Treat unknown versions as not present instead of failing.
                     raise Exception("Unknown xsrf cookie version")
+                _, mask, masked_token, timestamp = cookie.split("|")
+
+                mask = binascii.a2b_hex(utf8(mask))
+                token = _websocket_mask(
+                    mask, binascii.a2b_hex(utf8(masked_token)))
+                timestamp = int(timestamp)
             else:
                 version = 1
                 try:
@@ -1179,7 +1180,7 @@ class RequestHandler(object):
                     token = utf8(cookie)
                 # We don't have a usable timestamp in older versions.
                 timestamp = int(time.time())
-                return (version, token, timestamp)
+            return version, token, timestamp
         except Exception:
             # Catch exceptions and return nothing instead of failing.
             gen_log.debug("Uncaught exception in _decode_xsrf_token",
@@ -1265,11 +1266,7 @@ class RequestHandler(object):
         if include_host is None:
             include_host = getattr(self, "include_host", False)
 
-        if include_host:
-            base = self.request.protocol + "://" + self.request.host
-        else:
-            base = ""
-
+        base = f"{self.request.protocol}://{self.request.host}" if include_host else ""
         return base + get_url(self.settings, path, **kwargs)
 
     def require_setting(self, name, feature="this feature"):
@@ -1293,7 +1290,7 @@ class RequestHandler(object):
         hasher = hashlib.sha1()
         for part in self._write_buffer:
             hasher.update(part)
-        return '"%s"' % hasher.hexdigest()
+        return f'"{hasher.hexdigest()}"'
 
     def set_etag_header(self):
         """Sets the response's Etag header using ``self.compute_etag()``.
@@ -1364,12 +1361,13 @@ class RequestHandler(object):
             if self.request.method not in self.SUPPORTED_METHODS:
                 raise HTTPError(405)
             self.path_args = [self.decode_argument(arg) for arg in args]
-            self.path_kwargs = dict((k, self.decode_argument(v, name=k))
-                                    for (k, v) in kwargs.items())
+            self.path_kwargs = {
+                k: self.decode_argument(v, name=k) for (k, v) in kwargs.items()
+            }
             # If XSRF cookies are turned on, reject form submissions without
             # the proper cookie
             if self.request.method not in ("GET", "HEAD", "OPTIONS") and \
-                    self.application.settings.get("xsrf_cookies"):
+                        self.application.settings.get("xsrf_cookies"):
                 self.check_xsrf_cookie()
 
             result = self.prepare()
@@ -1431,8 +1429,7 @@ class RequestHandler(object):
         self.application.log_request(self)
 
     def _request_summary(self):
-        return "%s %s (%s)" % (self.request.method, self.request.uri,
-                               self.request.remote_ip)
+        return f"{self.request.method} {self.request.uri} ({self.request.remote_ip})"
 
     def _handle_request_exception(self, e):
         if isinstance(e, Finish):
@@ -1472,7 +1469,7 @@ class RequestHandler(object):
         """
         if isinstance(value, HTTPError):
             if value.log_message:
-                format = "%d %s: " + value.log_message
+                format = f"%d %s: {value.log_message}"
                 args = ([value.status_code, self._request_summary()] +
                         list(value.args))
                 gen_log.warning(format, *args)
@@ -1623,12 +1620,13 @@ def removeslash(method):
                 uri = self.request.path.rstrip("/")
                 if uri:  # don't try to redirect '/' to ''
                     if self.request.query:
-                        uri += "?" + self.request.query
+                        uri += f"?{self.request.query}"
                     self.redirect(uri, permanent=True)
                     return
             else:
                 raise HTTPError(404)
         return method(self, *args, **kwargs)
+
     return wrapper
 
 
@@ -1643,13 +1641,14 @@ def addslash(method):
     def wrapper(self, *args, **kwargs):
         if not self.request.path.endswith("/"):
             if self.request.method in ("GET", "HEAD"):
-                uri = self.request.path + "/"
+                uri = f"{self.request.path}/"
                 if self.request.query:
-                    uri += "?" + self.request.query
+                    uri += f"?{self.request.query}"
                 self.redirect(uri, permanent=True)
                 return
             raise HTTPError(404)
         return method(self, *args, **kwargs)
+
     return wrapper
 
 
@@ -1732,8 +1731,7 @@ class Application(httputil.HTTPServerConnectionDelegate):
                                                 StaticFileHandler)
             static_handler_args = settings.get("static_handler_args", {})
             static_handler_args['path'] = path
-            for pattern in [re.escape(static_url_prefix) + r"(.*)",
-                            r"/(favicon\.ico)", r"/(robots\.txt)"]:
+            for pattern in [f"{re.escape(static_url_prefix)}(.*)", r"/(favicon\.ico)", r"/(robots\.txt)"]:
                 handlers.insert(0, (pattern, static_handler_class,
                                     static_handler_args))
         if handlers:
@@ -1791,7 +1789,7 @@ class Application(httputil.HTTPServerConnectionDelegate):
 
         for spec in host_handlers:
             if isinstance(spec, (tuple, list)):
-                assert len(spec) in (2, 3, 4)
+                assert len(spec) in {2, 3, 4}
                 spec = URLSpec(*spec)
             handlers.append(spec)
             if spec.name:
@@ -1819,21 +1817,19 @@ class Application(httputil.HTTPServerConnectionDelegate):
 
     def _load_ui_methods(self, methods):
         if isinstance(methods, types.ModuleType):
-            self._load_ui_methods(dict((n, getattr(methods, n))
-                                       for n in dir(methods)))
+            self._load_ui_methods({n: getattr(methods, n) for n in dir(methods)})
         elif isinstance(methods, list):
             for m in methods:
                 self._load_ui_methods(m)
         else:
             for name, fn in methods.items():
                 if not name.startswith("_") and hasattr(fn, "__call__") \
-                        and name[0].lower() == name[0]:
+                            and name[0].lower() == name[0]:
                     self.ui_methods[name] = fn
 
     def _load_ui_modules(self, modules):
         if isinstance(modules, types.ModuleType):
-            self._load_ui_modules(dict((n, getattr(modules, n))
-                                       for n in dir(modules)))
+            self._load_ui_modules({n: getattr(modules, n) for n in dir(modules)})
         elif isinstance(modules, list):
             for m in modules:
                 self._load_ui_modules(m)
@@ -1867,7 +1863,7 @@ class Application(httputil.HTTPServerConnectionDelegate):
         """
         if name in self.named_handlers:
             return self.named_handlers[name].reverse(*args)
-        raise KeyError("%s not found in named urls" % name)
+        raise KeyError(f"{name} not found in named urls")
 
     def log_request(self, handler):
         """Writes a completed HTTP request to the logs.
@@ -1922,24 +1918,20 @@ class _RequestDispatcher(httputil.HTTPMessageDelegate):
         handlers = app._get_host_handlers(self.request)
         if not handlers:
             self.handler_class = RedirectHandler
-            self.handler_kwargs = dict(url="%s://%s/"
-                                       % (self.request.protocol,
-                                          app.default_host))
+            self.handler_kwargs = dict(
+                url=f"{self.request.protocol}://{app.default_host}/"
+            )
             return
         for spec in handlers:
-            match = spec.regex.match(self.request.path)
-            if match:
+            if match := spec.regex.match(self.request.path):
                 self.handler_class = spec.handler_class
                 self.handler_kwargs = spec.kwargs
                 if spec.regex.groups:
-                    # Pass matched groups to the handler.  Since
-                    # match.groups() includes both named and
-                    # unnamed groups, we want to use either groups
-                    # or groupdict but not both.
                     if spec.regex.groupindex:
-                        self.path_kwargs = dict(
-                            (str(k), _unquote_or_none(v))
-                            for (k, v) in match.groupdict().items())
+                        self.path_kwargs = {
+                            str(k): _unquote_or_none(v)
+                            for (k, v) in match.groupdict().items()
+                        }
                     else:
                         self.path_args = [_unquote_or_none(s)
                                           for s in match.groups()]
@@ -2037,7 +2029,7 @@ class HTTPError(Exception):
             self.status_code,
             self.reason or httputil.responses.get(self.status_code, 'Unknown'))
         if self.log_message:
-            return message + " (" + (self.log_message % self.args) + ")"
+            return f"{message} (" + self.log_message % self.args + ")"
         else:
             return message
 
@@ -2070,8 +2062,7 @@ class MissingArgumentError(HTTPError):
     .. versionadded:: 3.1
     """
     def __init__(self, arg_name):
-        super(MissingArgumentError, self).__init__(
-            400, 'Missing argument %s' % arg_name)
+        super(MissingArgumentError, self).__init__(400, f'Missing argument {arg_name}')
         self.arg_name = arg_name
 
 
@@ -2205,8 +2196,7 @@ class StaticFileHandler(RequestHandler):
             return
 
         request_range = None
-        range_header = self.request.headers.get("Range")
-        if range_header:
+        if range_header := self.request.headers.get("Range"):
             # As per RFC 2616 14.16, if an invalid Range header is specified,
             # the request will be treated as if the header didn't exist.
             request_range = httputil._parse_request_range(range_header)
@@ -2220,7 +2210,7 @@ class StaticFileHandler(RequestHandler):
                 # content, or when a suffix with length 0 is specified
                 self.set_status(416)  # Range Not Satisfiable
                 self.set_header("Content-Type", "text/plain")
-                self.set_header("Content-Range", "bytes */%s" % (size, ))
+                self.set_header("Content-Range", f"bytes */{size}")
                 return
             if start is not None and start < 0:
                 start += size
@@ -2272,9 +2262,7 @@ class StaticFileHandler(RequestHandler):
         .. versionadded:: 3.1
         """
         version_hash = self._get_cached_version(self.absolute_path)
-        if not version_hash:
-            return None
-        return '"%s"' % (version_hash, )
+        return None if not version_hash else f'"{version_hash}"'
 
     def set_headers(self):
         """Sets the content and caching headers on the response.
@@ -2296,7 +2284,7 @@ class StaticFileHandler(RequestHandler):
         if cache_time > 0:
             self.set_header("Expires", datetime.datetime.utcnow() +
                             datetime.timedelta(seconds=cache_time))
-            self.set_header("Cache-Control", "max-age=" + str(cache_time))
+            self.set_header("Cache-Control", f"max-age={str(cache_time)}")
 
         self.set_extra_headers(self.path)
 
@@ -2369,7 +2357,7 @@ class StaticFileHandler(RequestHandler):
             # but there is some prefix to the path that was already
             # trimmed by the routing
             if not self.request.path.endswith("/"):
-                self.redirect(self.request.path + "/", permanent=True)
+                self.redirect(f"{self.request.path}/", permanent=True)
                 return
             absolute_path = os.path.join(absolute_path, self.default_filename)
         if not os.path.exists(absolute_path):
@@ -2397,16 +2385,12 @@ class StaticFileHandler(RequestHandler):
         with open(abspath, "rb") as file:
             if start is not None:
                 file.seek(start)
-            if end is not None:
-                remaining = end - (start or 0)
-            else:
-                remaining = None
+            remaining = end - (start or 0) if end is not None else None
             while True:
                 chunk_size = 64 * 1024
                 if remaining is not None and remaining < chunk_size:
                     chunk_size = remaining
-                chunk = file.read(chunk_size)
-                if chunk:
+                if chunk := file.read(chunk_size):
                     if remaining is not None:
                         remaining -= len(chunk)
                     yield chunk
@@ -2461,9 +2445,7 @@ class StaticFileHandler(RequestHandler):
         .. versionadded:: 3.1
         """
         stat_result = self._stat()
-        modified = datetime.datetime.utcfromtimestamp(
-            stat_result[stat.ST_MTIME])
-        return modified
+        return datetime.datetime.utcfromtimestamp(stat_result[stat.ST_MTIME])
 
     def get_content_type(self):
         """Returns the ``Content-Type`` header to be used for this request.
@@ -2515,10 +2497,7 @@ class StaticFileHandler(RequestHandler):
             return url
 
         version_hash = cls.get_version(settings, path)
-        if not version_hash:
-            return url
-
-        return '%s?v=%s' % (url, version_hash)
+        return url if not version_hash else f'{url}?v={version_hash}'
 
     def parse_url_path(self, url_path):
         """Converts a static URL path into a filesystem path.
@@ -2560,8 +2539,7 @@ class StaticFileHandler(RequestHandler):
                 except Exception:
                     gen_log.error("Could not open static file %r", abs_path)
                     hashes[abs_path] = None
-            hsh = hashes.get(abs_path)
-            if hsh:
+            if hsh := hashes.get(abs_path):
                 return hsh
         return None
 
@@ -2691,11 +2669,12 @@ def authenticated(method):
                         next_url = self.request.full_url()
                     else:
                         next_url = self.request.uri
-                    url += "?" + urlencode(dict(next=next_url))
+                    url += f"?{urlencode(dict(next=next_url))}"
                 self.redirect(url)
                 return
             raise HTTPError(403)
         return method(self, *args, **kwargs)
+
     return wrapper
 
 
@@ -2920,17 +2899,16 @@ class URLSpec(object):
             if ')' in fragment:
                 paren_loc = fragment.index(')')
                 if paren_loc >= 0:
-                    pieces.append('%s' + fragment[paren_loc + 1:])
+                    pieces.append(f'%s{fragment[paren_loc + 1:]}')
             else:
                 pieces.append(fragment)
 
         return (''.join(pieces), self.regex.groups)
 
     def reverse(self, *args):
-        assert self._path is not None, \
-            "Cannot reverse url regex " + self.regex.pattern
+        assert self._path is not None, f"Cannot reverse url regex {self.regex.pattern}"
         assert len(args) == self._group_count, "required number of arguments "\
-            "not found"
+                "not found"
         if not len(args):
             return self._path
         converted_args = []
@@ -2950,11 +2928,10 @@ else:
         if len(a) != len(b):
             return False
         result = 0
-        if isinstance(a[0], int):  # python3 byte strings
-            for x, y in zip(a, b):
+        for x, y in zip(a, b):
+            if isinstance(a[0], int):  # python3 byte strings
                 result |= x ^ y
-        else:  # python2
-            for x, y in zip(a, b):
+            else:  # python2
                 result |= ord(x) ^ ord(y)
         return result == 0
 
@@ -3134,6 +3111,4 @@ def _unquote_or_none(s):
     Note that args are passed as bytes so the handler can decide what
     encoding to use.
     """
-    if s is None:
-        return s
-    return escape.url_unescape(s, encoding=None, plus=False)
+    return s if s is None else escape.url_unescape(s, encoding=None, plus=False)

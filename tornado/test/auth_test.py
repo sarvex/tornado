@@ -85,7 +85,7 @@ class OAuth1ClientLoginCoroutineHandler(OAuth1ClientLoginHandler):
                 yield self.get_authenticated_user()
             except Exception as e:
                 self.set_status(503)
-                self.write("got exception: %s" % e)
+                self.write(f"got exception: {e}")
         else:
             yield self.authorize_redirect()
 
@@ -181,9 +181,11 @@ class TwitterClientShowUserHandler(TwitterClientHandler):
     def get(self):
         # TODO: would be nice to go through the login flow instead of
         # cheating with a hard-coded access token.
-        response = yield gen.Task(self.twitter_request,
-                                  '/users/show/%s' % self.get_argument('name'),
-                                  access_token=dict(key='hjkl', secret='vbnm'))
+        response = yield gen.Task(
+            self.twitter_request,
+            f"/users/show/{self.get_argument('name')}",
+            access_token=dict(key='hjkl', secret='vbnm'),
+        )
         if response is None:
             self.set_status(500)
             self.finish('error from twitter request')
@@ -197,8 +199,9 @@ class TwitterClientShowUserFutureHandler(TwitterClientHandler):
     def get(self):
         try:
             response = yield self.twitter_request(
-                '/users/show/%s' % self.get_argument('name'),
-                access_token=dict(key='hjkl', secret='vbnm'))
+                f"/users/show/{self.get_argument('name')}",
+                access_token=dict(key='hjkl', secret='vbnm'),
+            )
         except AuthError as e:
             self.set_status(500)
             self.finish(str(e))

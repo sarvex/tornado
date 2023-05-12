@@ -300,11 +300,12 @@ class AsyncTestCase(unittest.TestCase):
                 def timeout_func():
                     try:
                         raise self.failureException(
-                            'Async operation timed out after %s seconds' %
-                            timeout)
+                            f'Async operation timed out after {timeout} seconds'
+                        )
                     except Exception:
                         self.__failure = sys.exc_info()
                     self.stop()
+
                 self.__timeout = self.io_loop.add_timeout(self.io_loop.time() + timeout, timeout_func)
             while True:
                 self.__running = True
@@ -398,8 +399,7 @@ class AsyncHTTPTestCase(AsyncTestCase):
 
     def get_url(self, path):
         """Returns an absolute url for the given path on the test server."""
-        return '%s://localhost:%s%s' % (self.get_protocol(),
-                                        self.get_http_port(), path)
+        return f'{self.get_protocol()}://localhost:{self.get_http_port()}{path}'
 
     def tearDown(self):
         self.http_server.stop()
@@ -510,15 +510,7 @@ def gen_test(func=None, timeout=None):
                 raise
         return post_coroutine
 
-    if func is not None:
-        # Used like:
-        #     @gen_test
-        #     def f(self):
-        #         pass
-        return wrap(func)
-    else:
-        # Used like @gen_test(timeout=10)
-        return wrap
+    return wrap(func) if func is not None else wrap
 
 
 # Without this attribute, nosetests will try to run gen_test as a test
@@ -559,7 +551,7 @@ class LogTrapTestCase(unittest.TestCase):
         old_stream = handler.stream
         try:
             handler.stream = StringIO()
-            gen_log.info("RUNNING TEST: " + str(self))
+            gen_log.info(f"RUNNING TEST: {str(self)}")
             old_error_count = len(result.failures) + len(result.errors)
             super(LogTrapTestCase, self).run(result)
             new_error_count = len(result.failures) + len(result.errors)

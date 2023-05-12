@@ -188,12 +188,11 @@ class WebSocketHandler(tornado.web.RequestHandler):
         self.ws_connection = self.get_websocket_protocol()
         if self.ws_connection:
             self.ws_connection.accept_connection()
-        else:
-            if not self.stream.closed():
-                self.stream.write(tornado.escape.utf8(
-                    "HTTP/1.1 426 Upgrade Required\r\n"
-                    "Sec-WebSocket-Version: 7, 8, 13\r\n\r\n"))
-                self.stream.close()
+        elif not self.stream.closed():
+            self.stream.write(tornado.escape.utf8(
+                "HTTP/1.1 426 Upgrade Required\r\n"
+                "Sec-WebSocket-Version: 7, 8, 13\r\n\r\n"))
+            self.stream.close()
 
     def write_message(self, message, binary=False):
         """Sends the given message to the client of this Web Socket.
@@ -438,10 +437,7 @@ class _PerMessageDeflateCompressor(object):
             raise ValueError("Invalid max_wbits value %r; allowed range 8-%d",
                              max_wbits, zlib.MAX_WBITS)
         self._max_wbits = max_wbits
-        if persistent:
-            self._compressor = self._create_compressor()
-        else:
-            self._compressor = None
+        self._compressor = self._create_compressor() if persistent else None
 
     def _create_compressor(self):
         return zlib.compressobj(-1, zlib.DEFLATED, -self._max_wbits)
@@ -462,10 +458,7 @@ class _PerMessageDeflateDecompressor(object):
             raise ValueError("Invalid max_wbits value %r; allowed range 8-%d",
                              max_wbits, zlib.MAX_WBITS)
         self._max_wbits = max_wbits
-        if persistent:
-            self._decompressor = self._create_decompressor()
-        else:
-            self._decompressor = None
+        self._decompressor = self._create_decompressor() if persistent else None
 
     def _create_decompressor(self):
         return zlib.decompressobj(-self._max_wbits)
@@ -552,10 +545,8 @@ class WebSocketProtocol13(WebSocketProtocol):
     def _accept_connection(self):
         subprotocol_header = ''
         subprotocols = self.request.headers.get("Sec-WebSocket-Protocol", '')
-        subprotocols = [s.strip() for s in subprotocols.split(',')]
-        if subprotocols:
-            selected = self.handler.select_subprotocol(subprotocols)
-            if selected:
+        if subprotocols := [s.strip() for s in subprotocols.split(',')]:
+            if selected := self.handler.select_subprotocol(subprotocols):
                 assert selected in subprotocols
                 subprotocol_header = ("Sec-WebSocket-Protocol: %s\r\n"
                                       % selected)
@@ -595,8 +586,7 @@ class WebSocketProtocol13(WebSocketProtocol):
         self._receive_frame()
 
     def _parse_extensions_header(self, headers):
-        extensions = headers.get("Sec-WebSocket-Extensions", '')
-        if extensions:
+        if extensions := headers.get("Sec-WebSocket-Extensions", ''):
             return [httputil._parse_header(e.strip())
                     for e in extensions.split(',')]
         return []
@@ -624,8 +614,9 @@ class WebSocketProtocol13(WebSocketProtocol):
         for our compressor objects.
         """
         options = dict(
-            persistent=(side + '_no_context_takeover') not in agreed_parameters)
-        wbits_header = agreed_parameters.get(side + '_max_window_bits', None)
+            persistent=f'{side}_no_context_takeover' not in agreed_parameters
+        )
+        wbits_header = agreed_parameters.get(f'{side}_max_window_bits', None)
         if wbits_header is None:
             options['max_wbits'] = zlib.MAX_WBITS
         else:
@@ -634,10 +625,12 @@ class WebSocketProtocol13(WebSocketProtocol):
 
     def _create_compressors(self, side, agreed_parameters):
         # TODO: handle invalid parameters gracefully
-        allowed_keys = set(['server_no_context_takeover',
-                            'client_no_context_takeover',
-                            'server_max_window_bits',
-                            'client_max_window_bits'])
+        allowed_keys = {
+            'server_no_context_takeover',
+            'client_no_context_takeover',
+            'server_max_window_bits',
+            'client_max_window_bits',
+        }
         for key in agreed_parameters:
             if key not in allowed_keys:
                 raise ValueError("unsupported compression parameter %r" % key)
@@ -648,16 +641,10 @@ class WebSocketProtocol13(WebSocketProtocol):
             **self._get_compressor_options(other_side, agreed_parameters))
 
     def _write_frame(self, fin, opcode, data, flags=0):
-        if fin:
-            finbit = self.FIN
-        else:
-            finbit = 0
+        finbit = self.FIN if fin else 0
         frame = struct.pack("B", finbit | opcode | flags)
         l = len(data)
-        if self.mask_outgoing:
-            mask_bit = 0x80
-        else:
-            mask_bit = 0
+        mask_bit = 0x80 if self.mask_outgoing else 0
         if l < 126:
             frame += struct.pack("B", l | mask_bit)
         elif l <= 0xFFFF:
@@ -676,10 +663,7 @@ class WebSocketProtocol13(WebSocketProtocol):
 
     def write_message(self, message, binary=False):
         """Sends the given message to the client of this Web Socket."""
-        if binary:
-            opcode = 0x2
-        else:
-            opcode = 0x1
+        opcode = 0x2 if binary else 0x1
         message = tornado.escape.utf8(message)
         assert isinstance(message, bytes)
         self._message_bytes_out += len(message)
@@ -851,10 +835,7 @@ class WebSocketProtocol13(WebSocketProtocol):
             if not self.stream.closed():
                 if code is None and reason is not None:
                     code = 1000  # "normal closure" status code
-                if code is None:
-                    close_data = b''
-                else:
-                    close_data = struct.pack('>H', code)
+                close_data = b'' if code is None else struct.pack('>H', code)
                 if reason is not None:
                     close_data += utf8(reason)
                 self._write_frame(True, 0x8, close_data)

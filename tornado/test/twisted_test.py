@@ -77,15 +77,17 @@ skipIfNoSingleDispatch = unittest.skipIf(
 
 
 def save_signal_handlers():
-    saved = {}
-    for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGCHLD]:
-        saved[sig] = signal.getsignal(sig)
-    if "twisted" in repr(saved):
-        if not issubclass(IOLoop.configured_class(), TwistedIOLoop):
-            # when the global ioloop is twisted, we expect the signal
-            # handlers to be installed.  Otherwise, it means we're not
-            # cleaning up after twisted properly.
-            raise Exception("twisted signal handlers already installed")
+    saved = {
+        sig: signal.getsignal(sig)
+        for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGCHLD]
+    }
+    if "twisted" in repr(saved) and not issubclass(
+        IOLoop.configured_class(), TwistedIOLoop
+    ):
+        # when the global ioloop is twisted, we expect the signal
+        # handlers to be installed.  Otherwise, it means we're not
+        # cleaning up after twisted properly.
+        raise Exception("twisted signal handlers already installed")
     return saved
 
 
@@ -153,8 +155,7 @@ class ReactorTwoCallLaterTest(ReactorTestCase):
         dc1 = self._reactor.callLater(self._timeout1, self.callLaterCallback1)
         self._timeout2 = 0.001
         dc2 = self._reactor.callLater(self._timeout2, self.callLaterCallback2)
-        self.assertTrue(self._reactor.getDelayedCalls() == [dc1, dc2] or
-                        self._reactor.getDelayedCalls() == [dc2, dc1])
+        self.assertTrue(self._reactor.getDelayedCalls() in [[dc1, dc2], [dc2, dc1]])
         self._reactor.run()
         self.assertTrue(self._later1Called)
         self.assertTrue(self._later2Called)

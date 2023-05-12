@@ -189,10 +189,7 @@ class _HTTPRequestContext(object):
         # Save the socket's address family now so we know how to
         # interpret self.address even after the stream is closed
         # and its socket attribute replaced with None.
-        if stream.socket is not None:
-            self.address_family = stream.socket.family
-        else:
-            self.address_family = None
+        self.address_family = None if stream.socket is None else stream.socket.family
         # In HTTPServerRequest we want an IP, not a full socket address.
         if (self.address_family in (socket.AF_INET, socket.AF_INET6) and
                 address is not None):

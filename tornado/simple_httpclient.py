@@ -110,7 +110,7 @@ class SimpleAsyncHTTPClient(AsyncHTTPClient):
     def fetch_impl(self, request, callback):
         key = object()
         self.queue.append((key, request, callback))
-        if not len(self.active) < self.max_clients:
+        if len(self.active) >= self.max_clients:
             timeout_handle = self.io_loop.add_timeout(
                 self.io_loop.time() + min(request.connect_timeout,
                                           request.request_timeout),
@@ -190,8 +190,7 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
         with stack_context.ExceptionStackContext(self._handle_exception):
             self.parsed = urlparse.urlsplit(_unicode(self.request.url))
             if self.parsed.scheme not in ("http", "https"):
-                raise ValueError("Unsupported url scheme: %s" %
-                                 self.request.url)
+                raise ValueError(f"Unsupported url scheme: {self.request.url}")
             # urlsplit results have hostname and port results, but they
             # didn't support ipv6 literals until python 2.7.
             netloc = self.parsed.netloc
@@ -205,15 +204,12 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
                 host = host[1:-1]
             self.parsed_hostname = host  # save final host for _on_connect
 
-            if request.allow_ipv6 is False:
-                af = socket.AF_INET
-            else:
-                af = socket.AF_UNSPEC
-
+            af = socket.AF_INET if request.allow_ipv6 is False else socket.AF_UNSPEC
             ssl_options = self._get_ssl_options(self.parsed.scheme)
 
-            timeout = min(self.request.connect_timeout, self.request.request_timeout)
-            if timeout:
+            if timeout := min(
+                self.request.connect_timeout, self.request.request_timeout
+            ):
                 self._timeout = self.io_loop.add_timeout(
                     self.start_time + timeout,
                     stack_context.wrap(self._on_timeout))
@@ -223,53 +219,53 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
                                     callback=self._on_connect)
 
     def _get_ssl_options(self, scheme):
-        if scheme == "https":
-            if self.request.ssl_options is not None:
-                return self.request.ssl_options
-            # If we are using the defaults, don't construct a
-            # new SSLContext.
-            if (self.request.validate_cert and
-                    self.request.ca_certs is None and
-                    self.request.client_cert is None and
-                    self.request.client_key is None):
-                return _client_ssl_defaults
-            ssl_options = {}
-            if self.request.validate_cert:
-                ssl_options["cert_reqs"] = ssl.CERT_REQUIRED
-            if self.request.ca_certs is not None:
-                ssl_options["ca_certs"] = self.request.ca_certs
-            elif not hasattr(ssl, 'create_default_context'):
-                # When create_default_context is present,
-                # we can omit the "ca_certs" parameter entirely,
-                # which avoids the dependency on "certifi" for py34.
-                ssl_options["ca_certs"] = _default_ca_certs()
-            if self.request.client_key is not None:
-                ssl_options["keyfile"] = self.request.client_key
-            if self.request.client_cert is not None:
-                ssl_options["certfile"] = self.request.client_cert
+        if scheme != "https":
+            return None
+        if self.request.ssl_options is not None:
+            return self.request.ssl_options
+        # If we are using the defaults, don't construct a
+        # new SSLContext.
+        if (self.request.validate_cert and
+                self.request.ca_certs is None and
+                self.request.client_cert is None and
+                self.request.client_key is None):
+            return _client_ssl_defaults
+        ssl_options = {}
+        if self.request.validate_cert:
+            ssl_options["cert_reqs"] = ssl.CERT_REQUIRED
+        if self.request.ca_certs is not None:
+            ssl_options["ca_certs"] = self.request.ca_certs
+        elif not hasattr(ssl, 'create_default_context'):
+            # When create_default_context is present,
+            # we can omit the "ca_certs" parameter entirely,
+            # which avoids the dependency on "certifi" for py34.
+            ssl_options["ca_certs"] = _default_ca_certs()
+        if self.request.client_key is not None:
+            ssl_options["keyfile"] = self.request.client_key
+        if self.request.client_cert is not None:
+            ssl_options["certfile"] = self.request.client_cert
 
-            # SSL interoperability is tricky.  We want to disable
-            # SSLv2 for security reasons; it wasn't disabled by default
-            # until openssl 1.0.  The best way to do this is to use
-            # the SSL_OP_NO_SSLv2, but that wasn't exposed to python
-            # until 3.2.  Python 2.7 adds the ciphers argument, which
-            # can also be used to disable SSLv2.  As a last resort
-            # on python 2.6, we set ssl_version to TLSv1.  This is
-            # more narrow than we'd like since it also breaks
-            # compatibility with servers configured for SSLv3 only,
-            # but nearly all servers support both SSLv3 and TLSv1:
-            # http://blog.ivanristic.com/2011/09/ssl-survey-protocol-support.html
-            if sys.version_info >= (2, 7):
-                # In addition to disabling SSLv2, we also exclude certain
-                # classes of insecure ciphers.
-                ssl_options["ciphers"] = "DEFAULT:!SSLv2:!EXPORT:!DES"
-            else:
-                # This is really only necessary for pre-1.0 versions
-                # of openssl, but python 2.6 doesn't expose version
-                # information.
-                ssl_options["ssl_version"] = ssl.PROTOCOL_TLSv1
-            return ssl_options
-        return None
+        # SSL interoperability is tricky.  We want to disable
+        # SSLv2 for security reasons; it wasn't disabled by default
+        # until openssl 1.0.  The best way to do this is to use
+        # the SSL_OP_NO_SSLv2, but that wasn't exposed to python
+        # until 3.2.  Python 2.7 adds the ciphers argument, which
+        # can also be used to disable SSLv2.  As a last resort
+        # on python 2.6, we set ssl_version to TLSv1.  This is
+        # more narrow than we'd like since it also breaks
+        # compatibility with servers configured for SSLv3 only,
+        # but nearly all servers support both SSLv3 and TLSv1:
+        # http://blog.ivanristic.com/2011/09/ssl-survey-protocol-support.html
+        if sys.version_info >= (2, 7):
+            # In addition to disabling SSLv2, we also exclude certain
+            # classes of insecure ciphers.
+            ssl_options["ciphers"] = "DEFAULT:!SSLv2:!EXPORT:!DES"
+        else:
+            # This is really only necessary for pre-1.0 versions
+            # of openssl, but python 2.6 doesn't expose version
+            # information.
+            ssl_options["ssl_version"] = ssl.PROTOCOL_TLSv1
+        return ssl_options
 
     def _on_timeout(self):
         self._timeout = None
@@ -297,12 +293,12 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
                 stack_context.wrap(self._on_timeout))
         if (self.request.method not in self._SUPPORTED_METHODS and
                 not self.request.allow_nonstandard_methods):
-            raise KeyError("unknown method %s" % self.request.method)
+            raise KeyError(f"unknown method {self.request.method}")
         for key in ('network_interface',
                     'proxy_host', 'proxy_port',
                     'proxy_username', 'proxy_password'):
             if getattr(self.request, key, None):
-                raise NotImplementedError('%s not supported' % key)
+                raise NotImplementedError(f'{key} not supported')
         if "Connection" not in self.request.headers:
             self.request.headers["Connection"] = "close"
         if "Host" not in self.request.headers:
@@ -326,18 +322,14 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
         if self.request.user_agent:
             self.request.headers["User-Agent"] = self.request.user_agent
         if not self.request.allow_nonstandard_methods:
-            # Some HTTP methods nearly always have bodies while others
-            # almost never do. Fail in this case unless the user has
-            # opted out of sanity checks with allow_nonstandard_methods.
-            body_expected = self.request.method in ("POST", "PATCH", "PUT")
             body_present = (self.request.body is not None or
                             self.request.body_producer is not None)
+            body_expected = self.request.method in ("POST", "PATCH", "PUT")
             if ((body_expected and not body_present) or
                     (body_present and not body_expected)):
                 raise ValueError(
-                    'Body must %sbe None for method %s (unless '
-                    'allow_nonstandard_methods is true)' %
-                    ('not ' if body_expected else '', self.request.method))
+                    f"Body must {'not ' if body_expected else ''}be None for method {self.request.method} (unless allow_nonstandard_methods is true)"
+                )
         if self.request.expect_100_continue:
             self.request.headers["Expect"] = "100-continue"
         if self.request.body is not None:
@@ -350,8 +342,9 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
             self.request.headers["Content-Type"] = "application/x-www-form-urlencoded"
         if self.request.decompress_response:
             self.request.headers["Accept-Encoding"] = "gzip"
-        req_path = ((self.parsed.path or '/') +
-                    (('?' + self.parsed.query) if self.parsed.query else ''))
+        req_path = (self.parsed.path or '/') + (
+            f'?{self.parsed.query}' if self.parsed.query else ''
+        )
         self.connection = self._create_connection(stream)
         start_line = httputil.RequestStartLine(self.request.method,
                                                req_path, '')
@@ -363,14 +356,16 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
 
     def _create_connection(self, stream):
         stream.set_nodelay(True)
-        connection = HTTP1Connection(
-            stream, True,
+        return HTTP1Connection(
+            stream,
+            True,
             HTTP1ConnectionParameters(
                 no_keep_alive=True,
                 max_header_size=self.max_header_size,
-                decompress=self.request.decompress_response),
-            self._sockaddr)
-        return connection
+                decompress=self.request.decompress_response,
+            ),
+            self._sockaddr,
+        )
 
     def _write_body(self, start_read):
         if self.request.body is not None:
@@ -410,26 +405,25 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
             self.io_loop.add_callback(final_callback, response)
 
     def _handle_exception(self, typ, value, tb):
-        if self.final_callback:
-            self._remove_timeout()
-            if isinstance(value, StreamClosedError):
-                value = HTTPError(599, "Stream closed")
-            self._run_callback(HTTPResponse(self.request, 599, error=value,
-                                            request_time=self.io_loop.time() - self.start_time,
-                                            ))
-
-            if hasattr(self, "stream"):
-                # TODO: this may cause a StreamClosedError to be raised
-                # by the connection's Future.  Should we cancel the
-                # connection more gracefully?
-                self.stream.close()
-            return True
-        else:
+        if not self.final_callback:
             # If our callback has already been called, we are probably
             # catching an exception that is not caused by us but rather
             # some child of our callback. Rather than drop it on the floor,
             # pass it along, unless it's just the stream being closed.
             return isinstance(value, StreamClosedError)
+        self._remove_timeout()
+        if isinstance(value, StreamClosedError):
+            value = HTTPError(599, "Stream closed")
+        self._run_callback(HTTPResponse(self.request, 599, error=value,
+                                        request_time=self.io_loop.time() - self.start_time,
+                                        ))
+
+        if hasattr(self, "stream"):
+            # TODO: this may cause a StreamClosedError to be raised
+            # by the connection's Future.  Should we cancel the
+            # connection more gracefully?
+            self.stream.close()
+        return True
 
     def on_connection_close(self):
         if self.final_callback is not None:
@@ -493,10 +487,7 @@ class _HTTPConnection(httputil.HTTPMessageDelegate):
             self.client.fetch(new_request, final_callback)
             self._on_end_request()
             return
-        if self.request.streaming_callback:
-            buffer = BytesIO()
-        else:
-            buffer = BytesIO(data)  # TODO: don't require one big string?
+        buffer = BytesIO() if self.request.streaming_callback else BytesIO(data)
         response = HTTPResponse(original_request,
                                 self.code, reason=getattr(self, 'reason', None),
                                 headers=self.headers,

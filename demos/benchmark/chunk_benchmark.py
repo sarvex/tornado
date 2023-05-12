@@ -15,7 +15,7 @@ define('chunk_size', default=2048)
 
 class ChunkHandler(RequestHandler):
     def get(self):
-        for i in xrange(options.num_chunks):
+        for _ in xrange(options.num_chunks):
             self.write('A' * options.chunk_size)
             self.flush()
         self.finish()

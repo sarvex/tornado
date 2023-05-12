@@ -12,7 +12,7 @@ define('name', default='Tornado')
 
 @gen.engine
 def run_tests():
-    url = options.url + '/getCaseCount'
+    url = f'{options.url}/getCaseCount'
     control_ws = yield websocket_connect(url, None)
     num_tests = int((yield control_ws.read_message()))
     logging.info('running %d cases', num_tests)
@@ -29,7 +29,7 @@ def run_tests():
                 break
             test_ws.write_message(message, binary=isinstance(message, bytes))
 
-    url = options.url + '/updateReports?agent=%s' % options.name
+    url = f'{options.url}/updateReports?agent={options.name}'
     update_ws = yield websocket_connect(url, None)
     msg = yield update_ws.read_message()
     assert msg is None

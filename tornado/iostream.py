@@ -241,7 +241,7 @@ class BaseIOStream(object):
             self._try_inline_read()
         except UnsatisfiableReadError as e:
             # Handle this the same way as in _handle_events.
-            gen_log.info("Unsatisfiable read, closing connection: %s" % e)
+            gen_log.info(f"Unsatisfiable read, closing connection: {e}")
             self.close(exc_info=True)
             return future
         except:
@@ -274,7 +274,7 @@ class BaseIOStream(object):
             self._try_inline_read()
         except UnsatisfiableReadError as e:
             # Handle this the same way as in _handle_events.
-            gen_log.info("Unsatisfiable read, closing connection: %s" % e)
+            gen_log.info(f"Unsatisfiable read, closing connection: {e}")
             self.close(exc_info=True)
             return future
         except:
@@ -431,38 +431,39 @@ class BaseIOStream(object):
     def _maybe_run_close_callback(self):
         # If there are pending callbacks, don't run the close callback
         # until they're done (see _maybe_add_error_handler)
-        if self.closed() and self._pending_callbacks == 0:
-            futures = []
-            if self._read_future is not None:
-                futures.append(self._read_future)
-                self._read_future = None
-            if self._write_future is not None:
-                futures.append(self._write_future)
-                self._write_future = None
-            if self._connect_future is not None:
-                futures.append(self._connect_future)
-                self._connect_future = None
-            if self._ssl_connect_future is not None:
-                futures.append(self._ssl_connect_future)
-                self._ssl_connect_future = None
-            for future in futures:
-                if self._is_connreset(self.error):
-                    # Treat connection resets as closed connections so
-                    # clients only have to catch one kind of exception
-                    # to avoid logging.
-                    future.set_exception(StreamClosedError())
-                else:
-                    future.set_exception(self.error or StreamClosedError())
-            if self._close_callback is not None:
-                cb = self._close_callback
-                self._close_callback = None
-                self._run_callback(cb)
-            # Delete any unfinished callbacks to break up reference cycles.
-            self._read_callback = self._write_callback = None
-            # Clear the buffers so they can be cleared immediately even
-            # if the IOStream object is kept alive by a reference cycle.
-            # TODO: Clear the read buffer too; it currently breaks some tests.
-            self._write_buffer = None
+        if not self.closed() or self._pending_callbacks != 0:
+            return
+        futures = []
+        if self._read_future is not None:
+            futures.append(self._read_future)
+            self._read_future = None
+        if self._write_future is not None:
+            futures.append(self._write_future)
+            self._write_future = None
+        if self._connect_future is not None:
+            futures.append(self._connect_future)
+            self._connect_future = None
+        if self._ssl_connect_future is not None:
+            futures.append(self._ssl_connect_future)
+            self._ssl_connect_future = None
+        for future in futures:
+            if self._is_connreset(self.error):
+                # Treat connection resets as closed connections so
+                # clients only have to catch one kind of exception
+                # to avoid logging.
+                future.set_exception(StreamClosedError())
+            else:
+                future.set_exception(self.error or StreamClosedError())
+        if self._close_callback is not None:
+            cb = self._close_callback
+            self._close_callback = None
+            self._run_callback(cb)
+        # Delete any unfinished callbacks to break up reference cycles.
+        self._read_callback = self._write_callback = None
+        # Clear the buffers so they can be cleared immediately even
+        # if the IOStream object is kept alive by a reference cycle.
+        # TODO: Clear the read buffer too; it currently breaks some tests.
+        self._write_buffer = None
 
     def reading(self):
         """Returns true if we are currently reading from the stream."""
@@ -532,11 +533,11 @@ class BaseIOStream(object):
                 state |= self.io_loop.READ
             if state != self._state:
                 assert self._state is not None, \
-                    "shouldn't happen: _handle_events without self._state"
+                        "shouldn't happen: _handle_events without self._state"
                 self._state = state
                 self.io_loop.update_handler(self.fileno(), self._state)
         except UnsatisfiableReadError as e:
-            gen_log.info("Unsatisfiable read, closing connection: %s" % e)
+            gen_log.info(f"Unsatisfiable read, closing connection: {e}")
             self.close(exc_info=True)
         except Exception:
             gen_log.error("Uncaught exception, closing connection.",
@@ -772,8 +773,7 @@ class BaseIOStream(object):
         if (self._read_bytes is not None and
             (self._read_buffer_size >= self._read_bytes or
              (self._read_partial and self._read_buffer_size > 0))):
-            num_bytes = min(self._read_bytes, self._read_buffer_size)
-            return num_bytes
+            return min(self._read_bytes, self._read_buffer_size)
         elif self._read_delimiter is not None:
             # Multi-byte delimiters (e.g. '\r\n') may straddle two
             # chunks in the read buffer, so we can't easily find them
@@ -1123,11 +1123,7 @@ class IOStream(BaseIOStream):
                 self._read_buffer or self._write_buffer):
             raise ValueError("IOStream is not idle; cannot convert to SSL")
         if ssl_options is None:
-            if server_side:
-                ssl_options = _server_ssl_defaults
-            else:
-                ssl_options = _client_ssl_defaults
-
+            ssl_options = _server_ssl_defaults if server_side else _client_ssl_defaults
         socket = self.socket
         self.io_loop.remove_handler(socket)
         self.socket = None
@@ -1151,6 +1147,7 @@ class IOStream(BaseIOStream):
                 future.set_exception(ssl_stream.error or StreamClosedError())
             if orig_close_callback is not None:
                 orig_close_callback()
+
         ssl_stream.set_close_callback(close_callback)
         ssl_stream._ssl_connect_callback = lambda: future.set_result(ssl_stream)
         ssl_stream.max_buffer_size = self.max_buffer_size

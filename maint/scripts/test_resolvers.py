@@ -47,11 +47,10 @@ def main():
         }[options.family]
 
     for host in args:
-        print('Resolving %s' % host)
+        print(f'Resolving {host}')
         for resolver in resolvers:
             addrinfo = yield resolver.resolve(host, 80, family)
-            print('%s: %s' % (resolver.__class__.__name__,
-                              pprint.pformat(addrinfo)))
+            print(f'{resolver.__class__.__name__}: {pprint.pformat(addrinfo)}')
         print()
 
 if __name__ == '__main__':

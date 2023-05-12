@@ -37,7 +37,7 @@ class _KQueue(object):
 
     def register(self, fd, events):
         if fd in self._active:
-            raise IOError("fd %s already registered" % fd)
+            raise IOError(f"fd {fd} already registered")
         self._control(fd, events, select.KQ_EV_ADD)
         self._active[fd] = events
 

@@ -76,10 +76,7 @@ class Queue(object):
         return not self._queue
 
     def full(self):
-        if self.maxsize == 0:
-            return False
-        else:
-            return self.qsize() >= self.maxsize
+        return False if self.maxsize == 0 else self.qsize() >= self.maxsize
 
     def put(self, item, timeout=None):
         """Put an item into the queue, perhaps waiting until there is room.
@@ -191,20 +188,19 @@ class Queue(object):
             self._getters.popleft()
 
     def __repr__(self):
-        return '<%s at %s %s>' % (
-            type(self).__name__, hex(id(self)), self._format())
+        return f'<{type(self).__name__} at {hex(id(self))} {self._format()}>'
 
     def __str__(self):
-        return '<%s %s>' % (type(self).__name__, self._format())
+        return f'<{type(self).__name__} {self._format()}>'
 
     def _format(self):
         result = 'maxsize=%r' % (self.maxsize, )
         if getattr(self, '_queue', None):
             result += ' queue=%r' % self._queue
         if self._getters:
-            result += ' getters[%s]' % len(self._getters)
+            result += f' getters[{len(self._getters)}]'
         if self._putters:
-            result += ' putters[%s]' % len(self._putters)
+            result += f' putters[{len(self._putters)}]'
         if self._unfinished_tasks:
-            result += ' tasks=%s' % self._unfinished_tasks
+            result += f' tasks={self._unfinished_tasks}'
         return result

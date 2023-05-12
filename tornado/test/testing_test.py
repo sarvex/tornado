@@ -29,11 +29,9 @@ def set_environ(name, value):
 class AsyncTestCaseTest(AsyncTestCase):
     def test_exception_in_callback(self):
         self.io_loop.add_callback(lambda: 1 / 0)
-        try:
+        with contextlib.suppress(ZeroDivisionError):
             self.wait()
             self.fail("did not get expected exception")
-        except ZeroDivisionError:
-            pass
 
     def test_wait_timeout(self):
         time = self.io_loop.time

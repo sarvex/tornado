@@ -17,9 +17,10 @@ class TranslationLoaderTest(unittest.TestCase):
             del tornado.locale.Locale._cache
 
     def setUp(self):
-        self.saved = {}
-        for var in TranslationLoaderTest.SAVE_VARS:
-            self.saved[var] = getattr(tornado.locale, var)
+        self.saved = {
+            var: getattr(tornado.locale, var)
+            for var in TranslationLoaderTest.SAVE_VARS
+        }
         self.clear_locale_cache()
 
     def tearDown(self):

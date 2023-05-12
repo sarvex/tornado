@@ -69,9 +69,10 @@ class BaseHandler(tornado.web.RequestHandler):
         return self.application.db
 
     def get_current_user(self):
-        user_id = self.get_secure_cookie("blogdemo_user")
-        if not user_id: return None
-        return self.db.get("SELECT * FROM authors WHERE id = %s", int(user_id))
+        if user_id := self.get_secure_cookie("blogdemo_user"):
+            return self.db.get("SELECT * FROM authors WHERE id = %s", int(user_id))
+        else:
+            return None
 
 
 class HomeHandler(BaseHandler):
@@ -86,9 +87,10 @@ class HomeHandler(BaseHandler):
 
 class EntryHandler(BaseHandler):
     def get(self, slug):
-        entry = self.db.get("SELECT * FROM entries WHERE slug = %s", slug)
-        if not entry: raise tornado.web.HTTPError(404)
-        self.render("entry.html", entry=entry)
+        if entry := self.db.get("SELECT * FROM entries WHERE slug = %s", slug):
+            self.render("entry.html", entry=entry)
+        else:
+            raise tornado.web.HTTPError(404)
 
 
 class ArchiveHandler(BaseHandler):
@@ -109,10 +111,10 @@ class FeedHandler(BaseHandler):
 class ComposeHandler(BaseHandler):
     @tornado.web.authenticated
     def get(self):
-        id = self.get_argument("id", None)
-        entry = None
-        if id:
+        if id := self.get_argument("id", None):
             entry = self.db.get("SELECT * FROM entries WHERE id = %s", int(id))
+        else:
+            entry = None
         self.render("compose.html", entry=entry)
 
     @tornado.web.authenticated
@@ -135,14 +137,15 @@ class ComposeHandler(BaseHandler):
             slug = "-".join(slug.lower().strip().split())
             if not slug: slug = "entry"
             while True:
-                e = self.db.get("SELECT * FROM entries WHERE slug = %s", slug)
-                if not e: break
-                slug += "-2"
+                if e := self.db.get("SELECT * FROM entries WHERE slug = %s", slug):
+                    slug += "-2"
+                else:
+                    break
             self.db.execute(
                 "INSERT INTO entries (author_id,title,slug,markdown,html,"
                 "published) VALUES (%s,%s,%s,%s,%s,UTC_TIMESTAMP())",
                 self.current_user.id, title, slug, text, html)
-        self.redirect("/entry/" + slug)
+        self.redirect(f"/entry/{slug}")
 
 
 class AuthLoginHandler(BaseHandler, tornado.auth.GoogleMixin):
@@ -156,20 +159,17 @@ class AuthLoginHandler(BaseHandler, tornado.auth.GoogleMixin):
     def _on_auth(self, user):
         if not user:
             raise tornado.web.HTTPError(500, "Google auth failed")
-        author = self.db.get("SELECT * FROM authors WHERE email = %s",
-                             user["email"])
-        if not author:
-            # Auto-create first author
-            any_author = self.db.get("SELECT * FROM authors LIMIT 1")
-            if not any_author:
-                author_id = self.db.execute(
-                    "INSERT INTO authors (email,name) VALUES (%s,%s)",
-                    user["email"], user["name"])
-            else:
-                self.redirect("/")
-                return
-        else:
+        if author := self.db.get(
+            "SELECT * FROM authors WHERE email = %s", user["email"]
+        ):
             author_id = author["id"]
+        elif any_author := self.db.get("SELECT * FROM authors LIMIT 1"):
+            self.redirect("/")
+            return
+        else:
+            author_id = self.db.execute(
+                "INSERT INTO authors (email,name) VALUES (%s,%s)",
+                user["email"], user["name"])
         self.set_secure_cookie("blogdemo_user", str(author_id))
         self.redirect(self.get_argument("next", "/"))
 

@@ -316,8 +316,7 @@ class TypeCheckHandler(RequestHandler):
     def check_type(self, name, obj, expected_type):
         actual_type = type(obj)
         if expected_type != actual_type:
-            self.errors[name] = "expected %s, got %s" % (expected_type,
-                                                         actual_type)
+            self.errors[name] = f"expected {expected_type}, got {actual_type}"
 
 
 class HTTPServerTest(AsyncHTTPTestCase):
@@ -644,8 +643,7 @@ class KeepAliveTest(AsyncHTTPTestCase):
         self.assertTrue(first_line.startswith(b'HTTP/1.1 200'), first_line)
         self.stream.read_until(b'\r\n\r\n', self.stop)
         header_bytes = self.wait()
-        headers = HTTPHeaders.parse(header_bytes.decode('latin1'))
-        return headers
+        return HTTPHeaders.parse(header_bytes.decode('latin1'))
 
     def read_response(self):
         self.headers = self.read_headers()
@@ -830,10 +828,10 @@ class StreamingChunkSizeTest(AsyncHTTPTestCase):
         chunks = json_decode(response.body)
         self.assertEqual(len(self.BODY), sum(chunks))
         for chunk_size in chunks:
-            self.assertLessEqual(chunk_size, self.CHUNK_SIZE,
-                                 'oversized chunk: ' + str(chunks))
-            self.assertGreater(chunk_size, 0,
-                               'empty chunk: ' + str(chunks))
+            self.assertLessEqual(
+                chunk_size, self.CHUNK_SIZE, f'oversized chunk: {str(chunks)}'
+            )
+            self.assertGreater(chunk_size, 0, f'empty chunk: {str(chunks)}')
         return chunks
 
     def compress(self, body):
@@ -928,7 +926,7 @@ class IdleTimeoutTest(AsyncHTTPTestCase):
         stream.set_close_callback(lambda: self.stop("closed"))
 
         # Use the connection twice to make sure keep-alives are working
-        for i in range(2):
+        for _ in range(2):
             stream.write(b"GET / HTTP/1.1\r\n\r\n")
             stream.read_until(b"\r\n\r\n", self.stop)
             self.wait()

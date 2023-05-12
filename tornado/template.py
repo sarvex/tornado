@@ -224,7 +224,7 @@ class Template(object):
         self.name = name
         if compress_whitespace is None:
             compress_whitespace = name.endswith(".html") or \
-                name.endswith(".js")
+                    name.endswith(".js")
         if autoescape is not _UNSET:
             self.autoescape = autoescape
         elif loader:
@@ -243,8 +243,10 @@ class Template(object):
             # from being applied to the generated code.
             self.compiled = compile(
                 escape.to_unicode(self.code),
-                "%s.generated.py" % self.name.replace('.', '_'),
-                "exec", dont_inherit=True)
+                f"{self.name.replace('.', '_')}.generated.py",
+                "exec",
+                dont_inherit=True,
+            )
         except Exception:
             formatted_code = _format_code(self.code).rstrip()
             app_log.error("%s code:\n%s", self.name, formatted_code)
@@ -267,7 +269,7 @@ class Template(object):
             "__name__": self.name.replace('.', '_'),
             "__loader__": ObjectDict(get_source=lambda name: self.code),
         }
-        namespace.update(self.namespace)
+        namespace |= self.namespace
         namespace.update(kwargs)
         exec_in(self.compiled, namespace)
         execute = namespace["_tt_execute"]
@@ -368,8 +370,7 @@ class Loader(BaseLoader):
     def _create_template(self, name):
         path = os.path.join(self.root, name)
         with open(path, "rb") as f:
-            template = Template(f.read(), name=name, loader=self)
-            return template
+            return Template(f.read(), name=name, loader=self)
 
 
 class DictLoader(BaseLoader):
@@ -485,14 +486,15 @@ class _ApplyBlock(_Node):
     def generate(self, writer):
         method_name = "_tt_apply%d" % writer.apply_counter
         writer.apply_counter += 1
-        writer.write_line("def %s():" % method_name, self.line)
+        writer.write_line(f"def {method_name}():", self.line)
         with writer.indent():
             writer.write_line("_tt_buffer = []", self.line)
             writer.write_line("_tt_append = _tt_buffer.append", self.line)
             self.body.generate(writer)
             writer.write_line("return _tt_utf8('').join(_tt_buffer)", self.line)
-        writer.write_line("_tt_append(_tt_utf8(%s(%s())))" % (
-            self.method, method_name), self.line)
+        writer.write_line(
+            f"_tt_append(_tt_utf8({self.method}({method_name}())))", self.line
+        )
 
 
 class _ControlBlock(_Node):
@@ -505,7 +507,7 @@ class _ControlBlock(_Node):
         return (self.body,)
 
     def generate(self, writer):
-        writer.write_line("%s:" % self.statement, self.line)
+        writer.write_line(f"{self.statement}:", self.line)
         with writer.indent():
             self.body.generate(writer)
             # Just in case the body was empty
@@ -520,7 +522,7 @@ class _IntermediateControlBlock(_Node):
     def generate(self, writer):
         # In case the previous block was empty
         writer.write_line("pass", self.line)
-        writer.write_line("%s:" % self.statement, self.line, writer.indent_size() - 1)
+        writer.write_line(f"{self.statement}:", self.line, writer.indent_size() - 1)
 
 
 class _Statement(_Node):
@@ -539,22 +541,23 @@ class _Expression(_Node):
         self.raw = raw
 
     def generate(self, writer):
-        writer.write_line("_tt_tmp = %s" % self.expression, self.line)
+        writer.write_line(f"_tt_tmp = {self.expression}", self.line)
         writer.write_line("if isinstance(_tt_tmp, _tt_string_types):"
                           " _tt_tmp = _tt_utf8(_tt_tmp)", self.line)
         writer.write_line("else: _tt_tmp = _tt_utf8(str(_tt_tmp))", self.line)
         if not self.raw and writer.current_template.autoescape is not None:
             # In python3 functions like xhtml_escape return unicode,
             # so we have to convert to utf8 again.
-            writer.write_line("_tt_tmp = _tt_utf8(%s(_tt_tmp))" %
-                              writer.current_template.autoescape, self.line)
+            writer.write_line(
+                f"_tt_tmp = _tt_utf8({writer.current_template.autoescape}(_tt_tmp))",
+                self.line,
+            )
         writer.write_line("_tt_append(_tt_tmp)", self.line)
 
 
 class _Module(_Expression):
     def __init__(self, expression, line):
-        super(_Module, self).__init__("_tt_modules." + expression, line,
-                                      raw=True)
+        super(_Module, self).__init__(f"_tt_modules.{expression}", line, raw=True)
 
 
 class _Text(_Node):
@@ -628,7 +631,7 @@ class _CodeWriter(object):
         if self.include_stack:
             ancestors = ["%s:%d" % (tmpl.name, lineno)
                          for (tmpl, lineno) in self.include_stack]
-            line_comment += ' (via %s)' % ', '.join(reversed(ancestors))
+            line_comment += f" (via {', '.join(reversed(ancestors))})"
         print("    " * indent + line + line_comment, file=self.file)
 
 

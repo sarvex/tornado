@@ -126,7 +126,7 @@ def import_object(name):
     try:
         return getattr(obj, parts[-1])
     except AttributeError:
-        raise ImportError("No module named %s" % parts[-1])
+        raise ImportError(f"No module named {parts[-1]}")
 
 
 # Deprecated alias that was used before we dropped py25 support.
@@ -204,7 +204,7 @@ class Configurable(object):
         if cls is base:
             impl = cls.configured_class()
             if base.__impl_kwargs:
-                init_kwargs.update(base.__impl_kwargs)
+                init_kwargs |= base.__impl_kwargs
         else:
             impl = cls
         init_kwargs.update(kwargs)
@@ -250,7 +250,7 @@ class Configurable(object):
         if isinstance(impl, (unicode_type, bytes)):
             impl = import_object(impl)
         if impl is not None and not issubclass(impl, cls):
-            raise ValueError("Invalid subclass of %s" % cls)
+            raise ValueError(f"Invalid subclass of {cls}")
         base.__impl_class = impl
         base.__impl_kwargs = kwargs
 

@@ -192,7 +192,7 @@ class TornadoReactor(PosixReactorBase):
     # IReactorThreads
     def callFromThread(self, f, *args, **kw):
         """See `twisted.internet.interfaces.IReactorThreads.callFromThread`"""
-        assert callable(f), "%s is not callable" % f
+        assert callable(f), f"{f} is not callable"
         with NullContext():
             # This NullContext is mainly for an edge case when running
             # TwistedIOLoop on top of a TornadoReactor.
@@ -435,7 +435,7 @@ class TwistedIOLoop(tornado.ioloop.IOLoop):
 
     def add_handler(self, fd, handler, events):
         if fd in self.fds:
-            raise ValueError('fd %s added twice' % fd)
+            raise ValueError(f'fd {fd} added twice')
         fd, fileobj = self.split_fd(fd)
         self.fds[fd] = _FD(fd, fileobj, wrap(handler))
         if events & tornado.ioloop.IOLoop.READ:
@@ -451,18 +451,16 @@ class TwistedIOLoop(tornado.ioloop.IOLoop):
             if not self.fds[fd].reading:
                 self.fds[fd].reading = True
                 self.reactor.addReader(self.fds[fd])
-        else:
-            if self.fds[fd].reading:
-                self.fds[fd].reading = False
-                self.reactor.removeReader(self.fds[fd])
+        elif self.fds[fd].reading:
+            self.fds[fd].reading = False
+            self.reactor.removeReader(self.fds[fd])
         if events & tornado.ioloop.IOLoop.WRITE:
             if not self.fds[fd].writing:
                 self.fds[fd].writing = True
                 self.reactor.addWriter(self.fds[fd])
-        else:
-            if self.fds[fd].writing:
-                self.fds[fd].writing = False
-                self.reactor.removeWriter(self.fds[fd])
+        elif self.fds[fd].writing:
+            self.fds[fd].writing = False
+            self.reactor.removeWriter(self.fds[fd])
 
     def remove_handler(self, fd):
         fd, fileobj = self.split_fd(fd)
@@ -560,7 +558,7 @@ class TwistedResolver(Resolver):
                 resolved_family = socket.AF_INET6
             else:
                 resolved_family = socket.AF_UNSPEC
-        if family != socket.AF_UNSPEC and family != resolved_family:
+        if family not in [socket.AF_UNSPEC, resolved_family]:
             raise Exception('Requested socket family %d but got %d' %
                             (family, resolved_family))
         result = [
