@@ -8,7 +8,7 @@ alabaster==0.7.13
     # via sphinx
 babel==2.11.0
     # via sphinx
-black==22.12.0
+black==23.3.0
     # via -r requirements.in
 build==0.10.0
     # via pip-tools
@@ -56,6 +56,7 @@ mypy-extensions==0.4.3
     #   mypy
 packaging==23.0
     # via
+    #   black
     #   build
     #   pyproject-api
     #   sphinx
@@ -108,13 +109,6 @@ sphinxcontrib-qthelp==1.0.3
     # via sphinx
 sphinxcontrib-serializinghtml==1.1.5
     # via sphinx
-tomli==2.0.1
-    # via
-    #   black
-    #   build
-    #   mypy
-    #   pyproject-api
-    #   tox
 tox==4.3.5
     # via -r requirements.in
 types-pycurl==7.45.2.0
