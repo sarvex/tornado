@@ -114,7 +114,7 @@ sphinxcontrib-serializinghtml==1.1.5
     # via sphinx
 tox==4.5.1
     # via -r requirements.in
-types-pycurl==7.45.2.0
+types-pycurl==7.45.2.4
     # via -r requirements.in
 typing-extensions==4.4.0
     # via mypy
