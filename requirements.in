@@ -2,7 +2,7 @@ black
 flake8
 mypy>=0.941
 pip-tools
-sphinx<6
+sphinx<8
 sphinxcontrib-asyncio
 sphinx_rtd_theme
 types-pycurl
