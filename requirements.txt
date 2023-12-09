@@ -122,7 +122,7 @@ tomli==2.0.1
     #   pyproject-api
     #   pyproject-hooks
     #   tox
-tox==4.11.3
+tox==4.11.4
     # via -r requirements.in
 types-pycurl==7.45.2.5
     # via -r requirements.in
