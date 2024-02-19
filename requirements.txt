@@ -10,7 +10,7 @@ babel==2.11.0
     # via sphinx
 black==23.12.1
     # via -r requirements.in
-build==0.10.0
+build==1.0.3
     # via pip-tools
 cachetools==5.3.2
     # via tox
@@ -63,7 +63,7 @@ packaging==23.1
     #   tox
 pathspec==0.10.3
     # via black
-pip-tools==7.3.0
+pip-tools==7.4.0
     # via -r requirements.in
 platformdirs==3.10.0
     # via
@@ -81,7 +81,9 @@ pygments==2.15.0
 pyproject-api==1.6.1
     # via tox
 pyproject-hooks==1.0.0
-    # via build
+    # via
+    #   build
+    #   pip-tools
 pytz==2022.7.1
     # via babel
 requests==2.31.0
