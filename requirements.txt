@@ -124,7 +124,7 @@ tomli==2.0.1
     #   tox
 tox==4.11.4
     # via -r requirements.in
-types-pycurl==7.45.2.20240106
+types-pycurl==7.45.2.20240311
     # via -r requirements.in
 typing-extensions==4.8.0
     # via
