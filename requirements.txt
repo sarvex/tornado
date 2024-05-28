@@ -125,7 +125,7 @@ tomli==2.0.1
     #   pyproject-hooks
     #   sphinx
     #   tox
-tox==4.14.2
+tox==4.15.0
     # via -r requirements.in
 types-pycurl==7.45.3.20240421
     # via -r requirements.in
