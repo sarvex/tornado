@@ -4,7 +4,7 @@
 #
 #    pip-compile requirements.in
 #
-alabaster==0.7.13
+alabaster==0.7.16
     # via sphinx
 babel==2.11.0
     # via sphinx
@@ -90,7 +90,7 @@ requests==2.32.2
     # via sphinx
 snowballstemmer==2.2.0
     # via sphinx
-sphinx==7.2.6
+sphinx==7.3.7
     # via
     #   -r requirements.in
     #   sphinx-rtd-theme
@@ -123,6 +123,7 @@ tomli==2.0.1
     #   pip-tools
     #   pyproject-api
     #   pyproject-hooks
+    #   sphinx
     #   tox
 tox==4.14.2
     # via -r requirements.in
